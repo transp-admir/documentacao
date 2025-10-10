@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login do Administrador</title>
+
+    {# Link para o Bootstrap para estilizar o formulário #}
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    {# Link para o seu CSS de login customizado #}
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+</head>
+<body>
+    {# O conteúdo do bloco de conteúdo agora é o corpo principal #}
+    <div class="login-container">
+        <h2>Área Administrativa</h2>
+        <p>Faça login para continuar.</p>
+        
+        {# Tratamento de mensagens flash (erros de login, etc.) #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    {% if category == 'error' %}
+                        <div class="alert alert-danger mt-3">{{ message }}</div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('auth.login') }}">
+            <div class="form-group mb-3">
+                <label for="username">Usuário</label>
+                <input type="text" id="username" name="username" class="form-control" required>
+            </div>
+            <div class="form-group mb-3">
+                <label for="password">Senha</label>
+                <input type="password" id="password" name="password" class="form-control" required>
+            </div>
+            <button type="submit" class="btn btn-primary w-100">Entrar</button>
+        </form>
+        <p style="text-align: center; margin-top: 20px;"><a href="{{ url_for('main.home') }}">Voltar ao Portal</a></p>
+    </div>
+
+    {# Adicionando o rodapé que existe no seu CSS #}
+    <div class="rodape">
+       Desenvolvido por 64Bits Informática &copy; {{ ano if ano else "2025" }}
+   </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
