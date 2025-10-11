@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{# Este template usa o mesmo bloco de navegação do adm.html para consistência #}
+{% block navigation %}
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-header">SGV Admin</div>
+    <ul class="sidebar-nav">
+        <li><a href="{{ url_for('admin.admin_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
+        <li class="active"><a href="{{ url_for('admin.gerar_convite') }}"><i class="fas fa-link"></i> Gerar Convite</a></li>
+        <li><a href="#"><i class="fas fa-building"></i> Empresas</a></li>
+        <li><a href="#"><i class="fas fa-user-tie"></i> Motoristas</a></li>
+        <li><a href="#"><i class="fas fa-truck"></i> Veículos</a></li>
+    </ul>
+    <ul class="sidebar-nav">
+        <li class="logout-link"><a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
+    </ul>
+</nav>
+<div class="mobile-header">
+    <span class="mobile-title">SGV Admin</span>
+    <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+</div>
+{% endblock %}
+
+{% block title %}Link de Convite Gerado{% endblock %}
+
+{% block header %}Convite para Nova Empresa{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card">
+                <div class="card-body">
+                    <h5 class="card-title">Link de Registro Único</h5>
+                    <p class="card-text">Envie o link abaixo para a transportadora. Ele é válido para um único registro e expira após o uso.</p>
+                    
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" value="{{ link_convite }}" id="linkConvite" readonly>
+                        <button class="btn btn-outline-secondary" type="button" id="copyButton" onclick="copiarLink()">
+                            <i class="fas fa-copy"></i> Copiar
+                        </button>
+                    </div>
+                    <div id="copy-success" class="text-success" style="display: none;">
+                        Link copiado para a área de transferência!
+                    </div>
+
+                    <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-primary mt-3"><i class="fas fa-arrow-left"></i> Voltar ao Dashboard</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function copiarLink() {
+    // Pega o elemento input
+    var linkInput = document.getElementById("linkConvite");
+
+    // Seleciona o texto do input
+    linkInput.select();
+    linkInput.setSelectionRange(0, 99999); // Para dispositivos móveis
+
+    // Copia o texto para a área de transferência
+    navigator.clipboard.writeText(linkInput.value).then(function() {
+        // Mostra a mensagem de sucesso e esconde após alguns segundos
+        var successMsg = document.getElementById('copy-success');
+        successMsg.style.display = 'block';
+        setTimeout(function() {
+            successMsg.style.display = 'none';
+        }, 2000);
+    }).catch(function(err) {
+        console.error('Erro ao copiar o link: ', err);
+    });
+}
+</script>
+{% endblock %}

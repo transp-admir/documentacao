@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-5">
+    <div class="row justify-content-center">
+        <div class="col-md-8">
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">{{ title }}</h3>
+                </div>
+                <div class="card-body">
+                    <form method="POST" action="" novalidate>
+                        {{ form.hidden_tag() }} {# Proteção CSRF #}
+
+                        <div class="form-group mb-3">
+                            {{ form.nome_fantasia.label(class="form-label") }}
+                            {{ form.nome_fantasia(class="form-control" + (" is-invalid" if form.nome_fantasia.errors else "")) }}
+                            {% for error in form.nome_fantasia.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="form-group mb-3">
+                            {{ form.razao_social.label(class="form-label") }}
+                            {{ form.razao_social(class="form-control" + (" is-invalid" if form.razao_social.errors else "")) }}
+                            {% for error in form.razao_social.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="form-group mb-3">
+                            {{ form.cnpj.label(class="form-label") }}
+                            {{ form.cnpj(class="form-control" + (" is-invalid" if form.cnpj.errors else "")) }}
+                            {% for error in form.cnpj.errors %}
+                                <div class="invalid-feedback">{{ error }}</div>
+                            {% endfor %}
+                        </div>
+
+                        <div class="form-group mb-3">
+                            {{ form.status.label(class="form-label") }}
+                            {{ form.status(class="form-control") }}
+                        </div>
+
+                        <div class="d-flex justify-content-end">
+                            {{ form.submit(class="btn btn-primary") }}
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

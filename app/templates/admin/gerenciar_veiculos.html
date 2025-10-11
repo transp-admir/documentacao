@@ -1,0 +1,57 @@
+{% extends "admin/adm.html" %}
+
+{% block title %}Gerenciar Veículos{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">Gerenciar Veículos</h1>
+
+    {% include '_includes/flash_messages.html' %}
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Lista de Veículos Cadastrados</h6>
+            <a href="#" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> Adicionar Novo Veículo
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Placa</th>
+                            <th>Empresa</th>
+                            <th>Operação</th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if veiculos %}
+                            {% for veiculo in veiculos %}
+                            <tr>
+                                <td>{{ veiculo.placa }}</td>
+                                <td>{{ veiculo.empresa.razao_social if veiculo.empresa else 'Não associada' }}</td>
+                                <td>{{ veiculo.operacao or 'Não informada' }}</td>
+                                <td class="text-center">
+                                    <a href="#" class="btn btn-warning btn-sm" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="#" class="btn btn-danger btn-sm" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir este veículo?');">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center">Nenhum veículo cadastrado.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

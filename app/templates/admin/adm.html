@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+
+{# ======== BLOCO DE NAVEGAÇÃO ESPECÍFICO DO ADMIN ======== #}
+{% block navigation %}
+<nav class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+        SGV Admin
+    </div>
+    <ul class="sidebar-nav">
+        {% set current_page = request.endpoint %}
+        <li class="{{ 'active' if 'admin.admin_dashboard' in current_page else '' }}"><a href="{{ url_for('admin.admin_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
+        <li class="{{ 'active' if 'admin.gerenciar_empresas' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_empresas') }}"><i class="fas fa-building"></i> Gerenciar Empresas</a></li>
+        <li class="{{ 'active' if 'admin.gerenciar_motoristas' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_motoristas') }}"><i class="fas fa-user-tie"></i> Gerenciar Motoristas</a></li>
+        <li class="{{ 'active' if 'admin.gerenciar_veiculos' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_veiculos') }}"><i class="fas fa-truck"></i> Gerenciar Veículos</a></li>
+        <li class="{{ 'active' if 'admin.upload_page' in current_page else '' }}"><a href="{{ url_for('admin.upload_page') }}"><i class="fas fa-file-upload"></i> Upload de Documentos</a></li>
+        <li class="{{ 'active' if 'admin.gerar_convite' in current_page else '' }}"><a href="{{ url_for('admin.gerar_convite') }}"><i class="fas fa-link"></i> Convidar Empresa</a></li>
+    </ul>
+    <ul class="sidebar-nav">
+        <li class="logout-link"><a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
+    </ul>
+</nav>
+
+<div class="mobile-header">
+    <span class="mobile-title">SGV Admin</span>
+    <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
+</div>
+{% endblock %}
+
+
+{# ======== BLOCO DE CONTEÚDO DA PÁGINA ======== #}
+{% block content %}
+    {% block admin_content %}
+    <div class="container-fluid">
+
+        {# Cards de Resumo Dinâmicos #}
+        <div class="row mb-4">
+            <div class="col-lg-4 col-md-6 mb-3">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title"><i class="fas fa-plus-circle"></i> Nova Empresa</h5>
+                        <p class="card-text">Gerar um link de registro seguro para uma nova transportadora se cadastrar no sistema.</p>
+                        <a href="{{ url_for('admin.gerar_convite') }}" class="btn btn-primary mt-auto">Gerar Convite</a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-6 mb-3">
+                <div class="card text-white bg-danger h-100">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="fas fa-exclamation-circle"></i> Alertas Críticos</h5>
+                        <p class="card-text fs-4">{{ critical_alerts_count }}</p>
+                        <small>Vencidos ou vencendo em 7 dias</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4 col-md-12 mb-3">
+                <div class="card text-dark bg-warning h-100">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="fas fa-exclamation-triangle"></i> Próximos 30 dias</h5>
+                        <p class="card-text fs-4">{{ next_30_days_count }}</p>
+                        <small>Total de itens vencendo no período</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        {# Tabela Dinâmica de Vencimentos #}
+        <div class="card">
+            <div class="card-header">
+                <h4><i class="fas fa-bell"></i> Itens Requerendo Atenção</h4>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Tipo</th>
+                                <th>Empresa</th>
+                                <th>Vencimento</th>
+                                <th>Status</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% if alert_items %}
+                                {% for item in alert_items %}
+                                <tr>
+                                    <td>{{ item.item_description }}</td>
+                                    <td><span class="badge bg-secondary">{{ item.item_type }}</span></td>
+                                    <td>{{ item.owner_name }}</td>
+                                    <td>{{ item.due_date.strftime('%d/%m/%Y') }}</td>
+                                    <td>
+                                        {% if item.days_left <= 0 %}
+                                            <span class="badge bg-danger">Vencido</span>
+                                        {% elif item.days_left <= 7 %}
+                                            <span class="badge bg-danger">Crítico ({{ item.days_left }}d)</span>
+                                        {% else %}
+                                            <span class="badge bg-warning text-dark">Atenção ({{ item.days_left }}d)</span>
+                                        {% endif %}
+                                    </td>
+                                    <td><a href="#" class="btn btn-sm btn-outline-primary">Ver</a></td>
+                                </tr>
+                                {% endfor %}
+                            {% else %}
+                                <tr>
+                                    <td colspan="6" class="text-center py-4">Nenhum item requerendo atenção no momento.</td>
+                                </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+    </div>
+    {% endblock admin_content %}
+{% endblock %}

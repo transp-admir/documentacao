@@ -1,0 +1,65 @@
+{% extends "admin/adm.html" %}
+
+{% block title %}Gerenciar Empresas{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">Gerenciar Empresas</h1>
+
+    {% include '_includes/flash_messages.html' %}
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Lista de Empresas Cadastradas</h6>
+            <a href="#" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> Adicionar Nova Empresa
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Razão Social</th>
+                            <th>CNPJ</th>
+                            <th>Status</th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if empresas %}
+                            {% for empresa in empresas %}
+                            <tr>
+                                <td>{{ empresa.razao_social }}</td>
+                                <td>{{ empresa.cnpj }}</td>
+                                <td>
+                                    <span class="badge bg-{{ 'success' if empresa.status == 'ativa' else 'danger' }}">
+                                        {{ empresa.status.title() }}
+                                    </span>
+                                </td>
+                                <td class="text-center">
+                                    <a href="#" class="btn btn-warning btn-sm" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="#" class="btn btn-danger btn-sm" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir esta empresa? Esta ação não pode ser desfeita.');">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="4" class="text-center">Nenhuma empresa cadastrada.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<!-- Você pode adicionar DataTables ou outros scripts aqui no futuro, se desejar -->
+{% endblock %}

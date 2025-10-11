@@ -1,0 +1,59 @@
+{% extends "admin/adm.html" %}
+
+{% block title %}Gerenciar Motoristas{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800">Gerenciar Motoristas</h1>
+
+    {% include '_includes/flash_messages.html' %}
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3 d-flex justify-content-between align-items-center">
+            <h6 class="m-0 font-weight-bold text-primary">Lista de Motoristas Cadastrados</h6>
+            <a href="#" class="btn btn-primary btn-sm">
+                <i class="fas fa-plus"></i> Adicionar Novo Motorista
+            </a>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr>
+                            <th>Nome</th>
+                            <th>CPF</th>
+                            <th>CNH</th>
+                            <th>Empresa</th>
+                            <th class="text-center">Ações</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% if motoristas %}
+                            {% for motorista in motoristas %}
+                            <tr>
+                                <td>{{ motorista.nome }}</td>
+                                <td>{{ motorista.cpf }}</td>
+                                <td>{{ motorista.cnh or 'Não informado' }}</td>
+                                <td>{{ motorista.empresa.razao_social if motorista.empresa else 'Não associada' }}</td>
+                                <td class="text-center">
+                                    <a href="#" class="btn btn-warning btn-sm" title="Editar">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                    <a href="#" class="btn btn-danger btn-sm" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir este motorista?');">
+                                        <i class="fas fa-trash"></i>
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        {% else %}
+                            <tr>
+                                <td colspan="5" class="text-center">Nenhum motorista cadastrado.</td>
+                            </tr>
+                        {% endif %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

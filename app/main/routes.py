@@ -4,9 +4,8 @@ from . import main_bp
 
 @main_bp.route('/')
 def home():
-    """Renderiza a página principal (dashboard) para preview."""
-    # Redirecionado para a página de index para facilitar o desenvolvimento do layout
-    return redirect(url_for('main.index'))
+    """Redireciona a rota raiz para a página de login."""
+    return redirect(url_for('auth.login_page'))
 
 @main_bp.route('/index')
 def index():

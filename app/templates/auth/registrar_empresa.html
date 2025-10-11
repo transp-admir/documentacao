@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Registro de Nova Empresa - SGV</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome para ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Estilo customizado para a página de login -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/login.css') }}">
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-box">
+            <div class="login-header">
+                <h3>Finalize seu Cadastro</h3>
+                <p>Preencha os dados abaixo para criar o acesso da sua empresa.</p>
+            </div>
+
+            {% include '_includes/flash_messages.html' %}
+
+            <form method="POST" action="" novalidate>
+                {{ form.hidden_tag() }}
+
+                <fieldset class="mb-4">
+                    <legend class="fieldset-legend"><i class="fas fa-building"></i> Dados da Empresa</legend>
+                    
+                    <div class="form-floating mb-3">
+                        {{ form.cnpj(class_="form-control" + (" is-invalid" if form.cnpj.errors else ""), placeholder="CNPJ") }}
+                        {{ form.cnpj.label }}
+                        {% for error in form.cnpj.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                        <div class="form-text">Digite o CNPJ. Se a empresa já for cadastrada, os dados serão preenchidos.</div>
+                    </div>
+                    <div class="form-floating mb-3">
+                        {{ form.razao_social(class_="form-control" + (" is-invalid" if form.razao_social.errors else ""), placeholder="Razão Social") }}
+                        {{ form.razao_social.label }}
+                        {% for error in form.razao_social.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <!-- O campo nome_fantasia foi removido daqui -->
+                </fieldset>
+
+                <fieldset>
+                    <legend class="fieldset-legend"><i class="fas fa-user"></i> Dados do Novo Usuário</legend>
+                    <div class="form-floating mb-3">
+                        {{ form.nome_usuario(class_="form-control" + (" is-invalid" if form.nome_usuario.errors else ""), placeholder="Seu Nome Completo") }}
+                        {{ form.nome_usuario.label }}
+                        {% for error in form.nome_usuario.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-floating mb-3">
+                        {{ form.login(class_="form-control" + (" is-invalid" if form.login.errors else ""), placeholder="Seu E-mail (será seu login)") }}
+                        {{ form.login.label }}
+                        {% for error in form.login.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-floating mb-3">
+                        {{ form.password(class_="form-control" + (" is-invalid" if form.password.errors else ""), placeholder="Crie uma Senha") }}
+                        {{ form.password.label }}
+                        {% for error in form.password.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                    <div class="form-floating mb-3">
+                        {{ form.password2(class_="form-control" + (" is-invalid" if form.password2.errors else ""), placeholder="Confirme a Senha") }}
+                        {{ form.password2.label }}
+                        {% for error in form.password2.errors %}<div class="invalid-feedback">{{ error }}</div>{% endfor %}
+                    </div>
+                </fieldset>
+
+                <div class="d-grid mt-4">
+                    {{ form.submit(class_="btn btn-primary btn-block") }}
+                </div>
+            </form>
+
+            <div class="login-footer">
+                <p>Já tem uma conta? <a href="{{ url_for('auth.login_page') }}">Faça login</a></p>
+                <p class="text-muted">&copy; {{ ano }} SGV. Todos os direitos reservados.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const cnpjField = document.getElementById('cnpj');
+            const razaoSocialField = document.getElementById('razao_social');
+            // A constante nomeFantasiaField foi removida.
+
+            if (cnpjField) {
+                cnpjField.addEventListener('blur', function() {
+                    const cnpjValue = this.value.replace(/\D/g, '');
+
+                    // Reseta os campos antes de cada consulta
+                    razaoSocialField.value = "";
+                    razaoSocialField.readOnly = false;
+
+                    if (cnpjValue.length === 14) {
+                        const url = "{{ url_for('auth.consultar_cnpj', cnpj='__CNPJ__') }}".replace('__CNPJ__', cnpjValue);
+                        
+                        fetch(url)
+                            .then(response => response.json())
+                            .then(data => {
+                                if (data.exists) {
+                                    // Empresa encontrada no BD
+                                    razaoSocialField.value = data.razao_social || '';
+                                    // Trava o campo para edição
+                                    razaoSocialField.readOnly = true;
+                                    document.getElementById('nome_usuario').focus();
+                                } else {
+                                    // Empresa não encontrada, campo permanece editável
+                                    razaoSocialField.focus();
+                                }
+                            })
+                            .catch(error => {
+                                console.error('Erro ao fazer a requisição:', error);
+                                alert("Ocorreu um erro ao verificar o CNPJ. Tente novamente.");
+                            });
+                    }
+                });
+            }
+        });
+    </script>
+
+</body>
+</html>
