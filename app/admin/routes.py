@@ -370,114 +370,203 @@ def handle_upload_and_process(required_cols, process_func):
 
     return redirect(url_for('admin.upload_page'))
 
-# --- Rota corrigida para Upload de Documento Fiscal ---
+# --- ROTAS DE UPLOAD DE VALIDADES ---
+
 @admin_bp.route('/upload/doc_fiscal', methods=['POST'])
 def upload_doc_fiscal():
-    required_cols = ['nome', 'tipo evento', 'data vencimento']
-    id_col_in_file = 'nome'
-    doc_name_col = 'tipo evento'
-    due_date_col = 'data vencimento'
-
-    if 'arquivo' not in request.files:
-        flash('Nenhum arquivo foi enviado.', 'danger')
+    file_input_name = 'documentos-fiscal-file'
+    if file_input_name not in request.files:
+        flash('Nenhum arquivo fiscal enviado.', 'danger')
         return redirect(url_for('admin.upload_page'))
-
-    arquivo = request.files['arquivo']
+    arquivo = request.files[file_input_name]
     if arquivo.filename == '':
-        flash('Nenhum arquivo foi selecionado.', 'danger')
+        flash('Nenhum arquivo fiscal selecionado.', 'danger')
         return redirect(url_for('admin.upload_page'))
-
-    extensao = arquivo.filename.rsplit('.', 1)[1].lower()
-    if extensao not in ['csv', 'xlsx', 'xls']:
-        flash('Formato de arquivo inválido. Use .csv, .xls ou .xlsx', 'danger')
-        return redirect(url_for('admin.upload_page'))
-
     try:
-        if extensao == 'csv':
-            df = pd.read_csv(arquivo.stream, dtype=str, encoding='latin-1')
-        else:
-            df = pd.read_excel(arquivo.stream, dtype=str)
-
+        df = pd.read_excel(arquivo, engine='openpyxl', dtype={'Nome': str, 'Tipo evento': str})
         df.columns = [str(col).strip().lower() for col in df.columns]
 
+        # CORREÇÃO: Usa 'nome' como a coluna de identificação
+        nome_col, doc_name_col, due_date_col = 'nome', 'tipo evento', 'data vencimento'
+        
+        required_cols = [nome_col, doc_name_col, due_date_col]
         if not all(col in df.columns for col in required_cols):
-            flash(f'O arquivo deve conter as colunas: {", ".join(required_cols)}', 'danger')
+            flash(f'Arquivo fiscal deve conter as colunas: "Nome", "Tipo evento", "Data vencimento".', 'danger')
             return redirect(url_for('admin.upload_page'))
 
+        df.dropna(subset=required_cols, inplace=True)
+
         novos, atualizados, nao_encontrados = 0, 0, set()
-
         for _, row in df.iterrows():
-            razao_social = row.get(id_col_in_file)
-            doc_name = row.get(doc_name_col)
-            vencimento_str = row.get(due_date_col)
+            nome_empresa, doc_name, vencimento_obj = row.get(nome_col), row.get(doc_name_col), row.get(due_date_col)
 
-            if pd.isna(razao_social) or pd.isna(doc_name) or pd.isna(vencimento_str):
-                continue
-
-            empresa = Empresa.query.filter(Empresa.razao_social.ilike(f"%{str(razao_social).strip()}%")).first()
-
+            empresa = Empresa.query.filter(Empresa.razao_social.ilike(f"%{str(nome_empresa).strip()}%")).first()
             if not empresa:
-                nao_encontrados.add(str(razao_social))
+                nao_encontrados.add(str(nome_empresa))
                 continue
-
             try:
-                data_vencimento = pd.to_datetime(vencimento_str, dayfirst=True, errors='coerce').date()
-                if pd.isna(data_vencimento):
-                    continue
+                data_vencimento = pd.to_datetime(vencimento_obj).date()
             except (ValueError, TypeError):
                 continue
-
-            documento_existente = DocumentoFiscal.query.filter_by(
-                empresa_id=empresa.id,
-                nome_documento=str(doc_name).upper()
-            ).first()
-
-            if documento_existente:
-                if documento_existente.data_vencimento != data_vencimento:
-                    documento_existente.data_vencimento = data_vencimento
+                
+            doc_existente = DocumentoFiscal.query.filter_by(empresa_id=empresa.id, nome_documento=str(doc_name).upper()).first()
+            if doc_existente:
+                if doc_existente.data_vencimento != data_vencimento:
+                    doc_existente.data_vencimento = data_vencimento
                     atualizados += 1
             else:
-                novo_documento = DocumentoFiscal(
-                    empresa_id=empresa.id,
-                    nome_documento=str(doc_name).upper(),
-                    data_vencimento=data_vencimento
-                )
+                novo_documento = DocumentoFiscal(empresa_id=empresa.id, nome_documento=str(doc_name).upper(), data_vencimento=data_vencimento)
                 db.session.add(novo_documento)
                 novos += 1
-
+                
         db.session.commit()
 
-        if novos > 0:
-            flash(f'{novos} novas validades de documentos fiscais foram cadastradas.', 'success')
-        if atualizados > 0:
-            flash(f'{atualizados} validades de documentos fiscais foram atualizadas.', 'success')
-        if not novos and not atualizados:
-            flash('Nenhum documento novo ou atualização necessária com base no arquivo enviado.', 'info')
-        if nao_encontrados:
-            flash(f'Atenção: As seguintes empresas (Razão Social) não foram encontradas: {", ".join(nao_encontrados)}', 'warning')
+        if novos: flash(f'{novos} novas validades fiscais cadastradas.', 'success')
+        if atualizados: flash(f'{atualizados} validades fiscais atualizadas.', 'info')
+        if nao_encontrados: flash(f'Atenção: As seguintes empresas não foram encontradas: {", ".join(sorted(nao_encontrados))}', 'warning')
 
     except Exception as e:
         db.session.rollback()
-        flash(f'Ocorreu um erro inesperado ao processar o arquivo: {e}', 'danger')
-
+        flash(f'Erro ao processar arquivo fiscal: {e}', 'danger')
+        
     return redirect(url_for('admin.upload_page'))
 
 
 @admin_bp.route('/upload/doc_motorista', methods=['POST'])
 def upload_doc_motorista():
-    required = ['cpf_motorista', 'nome_documento', 'data_vencimento']
-    def process(df):
-        find_motorista = lambda cpf: Motorista.query.filter_by(cpf=format_cpf(re.sub(r'\D', '', str(cpf)))).first()
-        process_document_validity(df, 'cpf_motorista', 'CPFs', DocumentoMotorista, find_motorista, 'motorista_id')
-    return handle_upload_and_process(required, process)
+    if 'documentos-motorista-file' not in request.files:
+        flash('Nenhum arquivo de motorista enviado.', 'danger')
+        return redirect(url_for('admin.upload_page'))
+    file = request.files['documentos-motorista-file']
+    if file.filename == '':
+        flash('Nenhum arquivo de motorista selecionado.', 'danger')
+        return redirect(url_for('admin.upload_page'))
+    try:
+        df = pd.read_excel(file, engine='openpyxl', dtype={'Nome': str, 'Tipo evento': str})
+        df.columns = [str(c).strip().lower().replace(' ', '_') for c in df.columns]
+        
+        expected_cols = {'tipo_evento', 'nome', 'data_vencimento'}
+        if not expected_cols.issubset(df.columns):
+            flash(f"Arquivo de motorista deve conter: 'Tipo evento', 'Nome', 'Data vencimento'.", 'danger')
+            return redirect(url_for('admin.upload_page'))
+
+        df.dropna(subset=['tipo_evento', 'nome', 'data_vencimento'], inplace=True)
+
+        novos, atualizados, nao_encontrados, duplicados = 0, 0, set(), set()
+        for _, row in df.iterrows():
+            nome_doc, nome_mot, venc_obj = row.get('tipo_evento'), row.get('nome'), row.get('data_vencimento')
+            
+            try:
+                venc_date = pd.to_datetime(venc_obj).date()
+            except (ValueError, TypeError):
+                continue
+
+            motoristas = Motorista.query.filter(Motorista.nome.ilike(str(nome_mot).strip())).all()
+            if len(motoristas) == 1:
+                motorista = motoristas[0]
+            elif len(motoristas) > 1:
+                duplicados.add(str(nome_mot).strip())
+                continue
+            else:
+                nao_encontrados.add(str(nome_mot).strip())
+                continue
+
+            doc_existente = DocumentoMotorista.query.filter_by(
+                motorista_id=motorista.id,
+                nome_documento=str(nome_doc).strip().upper()
+            ).first()
+
+            if doc_existente:
+                if doc_existente.data_vencimento != venc_date:
+                    doc_existente.data_vencimento = venc_date
+                    atualizados += 1
+            else:
+                novo_doc = DocumentoMotorista(
+                    nome_documento=str(nome_doc).strip().upper(),
+                    data_vencimento=venc_date,
+                    motorista_id=motorista.id
+                )
+                db.session.add(novo_doc)
+                novos += 1
+
+        db.session.commit()
+        
+        if novos: flash(f'{novos} novas validades de motoristas cadastradas.', 'success')
+        if atualizados: flash(f'{atualizados} validades de motoristas foram atualizadas.', 'info')
+        if nao_encontrados: flash(f'Motoristas não encontrados: {", ".join(sorted(list(nao_encontrados)))}', 'warning')
+        if duplicados: flash(f'Motoristas com nome duplicado (não processados): {", ".join(sorted(list(duplicados)))}', 'danger')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao processar arquivo de motoristas: {e}', 'danger')
+        
+    return redirect(url_for('admin.upload_page'))
 
 @admin_bp.route('/upload/doc_veiculo', methods=['POST'])
 def upload_doc_veiculo():
-    required = ['placa_veiculo', 'nome_documento', 'data_vencimento']
-    def process(df):
-        find_veiculo = lambda placa: Veiculo.query.filter_by(placa=str(placa).upper()).first()
-        process_document_validity(df, 'placa_veiculo', 'Placas', DocumentoVeiculo, find_veiculo, 'veiculo_id')
-    return handle_upload_and_process(required, process)
+    if 'documentos-veiculo-file' not in request.files:
+        flash('Nenhum arquivo de veículo enviado.', 'danger')
+        return redirect(url_for('admin.upload_page'))
+    file = request.files['documentos-veiculo-file']
+    if file.filename == '':
+        flash('Nenhum arquivo de veículo selecionado.', 'danger')
+        return redirect(url_for('admin.upload_page'))
+    try:
+        df = pd.read_excel(file, engine='openpyxl', dtype={'Nome': str, 'Tipo evento': str})
+        df.columns = [str(c).strip().lower().replace(' ', '_') for c in df.columns]
+        df.rename(columns={'tipo_evento': 'documento', 'nome': 'placa', 'data_vencimento': 'vencimento'}, inplace=True)
+        
+        expected_cols = {'documento', 'placa', 'vencimento'}
+        if not expected_cols.issubset(df.columns):
+            flash(f"Arquivo de veículo deve conter: 'Tipo evento', 'Nome' (placa), 'Data vencimento'.", 'danger')
+            return redirect(url_for('admin.upload_page'))
+        
+        df.dropna(subset=['documento', 'placa', 'vencimento'], inplace=True)
+        
+        novos, atualizados, nao_encontrados = 0, 0, set()
+        for _, row in df.iterrows():
+            nome_doc, placa_veic, venc_obj = row['documento'], row['placa'], row['vencimento']
+            
+            try:
+                venc_date = pd.to_datetime(venc_obj).date()
+            except (ValueError, TypeError):
+                continue
+
+            placa_limpa = str(placa_veic).strip().upper()
+            veiculo = Veiculo.query.filter(Veiculo.placa.ilike(placa_limpa)).first()
+            if not veiculo:
+                nao_encontrados.add(placa_limpa)
+                continue
+
+            doc_existente = DocumentoVeiculo.query.filter_by(
+                veiculo_id=veiculo.id,
+                nome_documento=str(nome_doc).strip().upper()
+            ).first()
+
+            if doc_existente:
+                if doc_existente.data_vencimento != venc_date:
+                    doc_existente.data_vencimento = venc_date
+                    atualizados += 1
+            else:
+                novo_doc = DocumentoVeiculo(
+                    nome_documento=str(nome_doc).strip().upper(),
+                    data_vencimento=venc_date,
+                    veiculo_id=veiculo.id
+                )
+                db.session.add(novo_doc)
+                novos += 1
+            
+        db.session.commit()
+        
+        if novos: flash(f'{novos} novas validades de veículos cadastradas.', 'success')
+        if atualizados: flash(f'{atualizados} validades de veículos foram atualizadas.', 'info')
+        if nao_encontrados: flash(f'Placas não encontradas: {", ".join(sorted(list(nao_encontrados)))}', 'warning')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao processar arquivo de veículos: {e}', 'danger')
+        
+    return redirect(url_for('admin.upload_page'))
 
 
 # --- ROTA DO PAINEL PRINCIPAL (DASHBOARD) ---
@@ -494,48 +583,47 @@ def admin_dashboard():
 
     all_alert_items = []
 
-    # Funções para buscar e processar documentos
-    def process_docs(query, type, description_format):
-        if search_term:
-            if type == 'Empresa':
-                query = query.join(Empresa).filter(Empresa.razao_social.ilike(f"%{search_term}%"))
-            else:
-                OwnerModel = Motorista if type == 'Motorista' else Veiculo
-                query = query.join(OwnerModel).join(Empresa).filter(Empresa.razao_social.ilike(f"%{search_term}%"))
-        
+    # Função interna robusta para processar documentos
+    def process_docs(query, doc_type, description_format, owner_relation_name, owner_attr_name):
+        # A lógica de busca pode ser adicionada aqui se necessário
         for doc in query.all():
-            prazo = alert_configs.get(doc.nome_documento, default_prazo)
+            prazo = alert_configs.get(doc.nome_documento.upper(), default_prazo)
             due_date_limit = today + timedelta(days=prazo)
-            if doc.data_vencimento <= due_date_limit:
-                owner_name = ''
-                if type == 'Empresa':
-                    owner_name = doc.empresa.razao_social
-                    item_description = description_format.format(nome=doc.nome_documento)
-                elif type == 'Motorista':
-                    owner_name = doc.motorista.empresa.razao_social
-                    item_description = description_format.format(nome=doc.nome_documento, owner=doc.motorista.nome.split()[0])
-                elif type == 'Veículo':
-                    owner_name = doc.veiculo.empresa.razao_social
-                    item_description = description_format.format(nome=doc.nome_documento, owner=doc.veiculo.placa)
 
+            if doc.data_vencimento <= due_date_limit:
+                # 1. Pega o objeto relacionado (motorista, veiculo, empresa) de forma segura
+                owner = getattr(doc, owner_relation_name, None)
+
+                # 2. Define nomes padrão
+                owner_name = 'Não Associado'
+                company_name = 'Não Associado'
+
+                # 3. Se o objeto relacionado existir, pega os nomes corretos
+                if owner:
+                    owner_name = getattr(owner, owner_attr_name, 'N/A')
+                    if doc_type == 'Empresa':
+                        company_name = owner_name
+                    else:
+                        company = getattr(owner, 'empresa', None)
+                        company_name = company.razao_social if company else 'Sem Empresa'
+                
+                item_description = description_format.format(nome=doc.nome_documento, owner=owner_name)
                 all_alert_items.append({
                     'item_description': item_description,
-                    'item_type': type,
-                    'owner_name': owner_name,
+                    'item_type': doc_type,
+                    'owner_name': company_name,
                     'due_date': doc.data_vencimento,
                     'days_left': (doc.data_vencimento - today).days
                 })
 
-    # Processa todos os tipos de documentos
-    process_docs(DocumentoFiscal.query.options(joinedload(DocumentoFiscal.empresa)), 'Empresa', '{nome}')
-    process_docs(DocumentoMotorista.query.options(joinedload(DocumentoMotorista.motorista).joinedload(Motorista.empresa)), 'Motorista', '{nome} de {owner}')
-    process_docs(DocumentoVeiculo.query.options(joinedload(DocumentoVeiculo.veiculo).joinedload(Veiculo.empresa)), 'Veículo', '{nome} - {owner}')
+    # Processa cada tipo de documento com a nova lógica segura
+    process_docs(DocumentoFiscal.query.options(joinedload(DocumentoFiscal.empresa)), 'Empresa', '{nome}', 'empresa', 'razao_social')
+    process_docs(DocumentoMotorista.query.options(joinedload(DocumentoMotorista.motorista).joinedload(Motorista.empresa)), 'Motorista', '{nome} de {owner}', 'motorista', 'nome')
+    process_docs(DocumentoVeiculo.query.options(joinedload(DocumentoVeiculo.veiculo).joinedload(Veiculo.empresa)), 'Veículo', '{nome} - {owner}', 'veiculo', 'placa')
 
-    # Calcula as contagens ANTES de qualquer filtro de visualização
     vencidos_count = sum(1 for item in all_alert_items if item['days_left'] <= 0)
     critical_alerts_count = sum(1 for item in all_alert_items if 0 < item['days_left'] <= 7)
 
-    # Agora, aplica o filtro de visualização para a tabela
     display_items = all_alert_items
     if hide_vencidos:
         display_items = [item for item in display_items if item['days_left'] > 0]
@@ -544,9 +632,9 @@ def admin_dashboard():
 
     return render_template('admin/adm.html',
                            alert_items=display_items,
-                           vencidos_count=vencidos_count, # Novo contador
-                           critical_alerts_count=critical_alerts_count, # Contador corrigido
-                           total_list_count=len(display_items), # Contador para o card de total
+                           vencidos_count=vencidos_count,
+                           critical_alerts_count=critical_alerts_count,
+                           total_list_count=len(display_items),
                            search_term=search_term,
                            hide_vencidos=hide_vencidos)
 

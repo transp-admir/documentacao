@@ -19,18 +19,18 @@
         {% endif %}
     {% endwith %}
 
-    <p class="mb-4">Utilize os formulários abaixo para cadastrar ou atualizar dados em massa. Escolha o tipo de dado, selecione o arquivo (.csv, .xls, .xlsx) e clique em "Enviar".</p>
+    <p class="mb-4">Utilize os formulários abaixo para cadastrar entidades ou registrar validades de documentos em massa. Escolha o tipo de dado, selecione o arquivo (.xls, .xlsx) e clique em "Enviar".</p>
 
     <div class="accordion" id="accordionUploads">
 
         <!-- ================= Bloco 1: Cadastros ================= -->
         <div class="accordion-item">
             <h2 class="accordion-header" id="headingCadastro">
-                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCadastro" aria-expanded="true" aria-controls="collapseCadastro">
-                    <i class="fas fa-user-plus me-2"></i> Bloco 1: Cadastros
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCadastro" aria-expanded="false" aria-controls="collapseCadastro">
+                    <i class="fas fa-user-plus me-2"></i> Bloco 1: Cadastros de Entidades
                 </button>
             </h2>
-            <div id="collapseCadastro" class="accordion-collapse collapse show" aria-labelledby="headingCadastro" data-bs-parent="#accordionUploads">
+            <div id="collapseCadastro" class="accordion-collapse collapse" aria-labelledby="headingCadastro" data-bs-parent="#accordionUploads">
                 <div class="accordion-body">
                     <div class="row">
                         <!-- Card Transportador -->
@@ -53,7 +53,7 @@
                             <div class="card h-100">
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title">Cadastro de Motorista</h5>
-                                    <p class="card-text"><small>Colunas: <code>nome</code>, <code>cpf</code>, <code>cnpj_transportador</code>, <code>cnh</code>(opc), <code>operacao</code>(opc).</small></p>
+                                    <p class="card-text"><small>Colunas: <code>nome</code>, <code>cpf</code>, <code>cnpj_transportador</code>.</small></p>
                                     <form action="{{ url_for('admin.upload_motoristas') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
                                         <div class="mb-3">
                                             <input class="form-control" type="file" name="arquivo" required>
@@ -68,7 +68,7 @@
                             <div class="card h-100">
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title">Cadastro de Veículos</h5>
-                                    <p class="card-text"><small>Colunas: <code>placa</code>, <code>cnpj_transportador</code>, <code>operacao</code>(opc).</small></p>
+                                    <p class="card-text"><small>Colunas: <code>placa</code>, <code>cnpj_transportador</code>.</small></p>
                                     <form action="{{ url_for('admin.upload_veiculos') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
                                         <div class="mb-3">
                                             <input class="form-control" type="file" name="arquivo" required>
@@ -86,39 +86,41 @@
         <!-- ================= Bloco 2: Validades ================= -->
         <div class="accordion-item">
             <h2 class="accordion-header" id="headingValidade">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseValidade" aria-expanded="false" aria-controls="collapseValidade">
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseValidade" aria-expanded="true" aria-controls="collapseValidade">
                     <i class="fas fa-calendar-check me-2"></i> Bloco 2: Validades de Documentos
                 </button>
             </h2>
-            <div id="collapseValidade" class="accordion-collapse collapse" aria-labelledby="headingValidade" data-bs-parent="#accordionUploads">
+            <div id="collapseValidade" class="accordion-collapse collapse show" aria-labelledby="headingValidade" data-bs-parent="#accordionUploads">
                 <div class="accordion-body">
                     <div class="row">
                         <!-- Card Doc. Fiscal -->
-                        <div class="col-md-4 mb-4">
-                            <div class="card h-100">
-                                <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">Doc. Fiscal (Empresa)</h5>
-                                    <p class="card-text"><small>Colunas: <code>cnpj_empresa</code>, <code>nome_documento</code>, <code>data_vencimento</code>.</small></p>
-                                    <form action="{{ url_for('admin.upload_doc_fiscal') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
-                                        <div class="mb-3">
-                                            <input class="form-control" type="file" name="arquivo" required>
-                                        </div>
-                                        <button type="submit" class="btn btn-secondary w-100">Enviar Validades</button>
-                                    </form>
+                            <div class="col-md-4 mb-4">
+                                <div class="card h-100">
+                                    <div class="card-body d-flex flex-column">
+                                        <h5 class="card-title">Doc. Fiscal (Empresa)</h5>
+                                        <!-- CORREÇÃO: Alterado de "Razão Social" para "Nome" -->
+                                        <p class="card-text"><small>Colunas: <code>Nome</code>, <code>Tipo evento</code>, <code>Data vencimento</code>.</small></p>
+                                        <form action="{{ url_for('admin.upload_doc_fiscal') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
+                                            <div class="mb-3">
+                                                <input class="form-control" type="file" name="documentos-fiscal-file" required>
+                                            </div>
+                                            <button type="submit" class="btn btn-secondary w-100">Enviar Validades Fiscais</button>
+                                        </form>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+
                         <!-- Card Doc. Motorista -->
                         <div class="col-md-4 mb-4">
                             <div class="card h-100">
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title">Doc. Motorista</h5>
-                                    <p class="card-text"><small>Colunas: <code>cpf_motorista</code>, <code>nome_documento</code>, <code>data_vencimento</code>.</small></p>
+                                    <p class="card-text"><small>Colunas: <code>Tipo evento</code>, <code>Nome</code>, <code>Data vencimento</code>.</small></p>
                                     <form action="{{ url_for('admin.upload_doc_motorista') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
                                         <div class="mb-3">
-                                            <input class="form-control" type="file" name="arquivo" required>
+                                            <input class="form-control" type="file" name="documentos-motorista-file" required>
                                         </div>
-                                        <button type="submit" class="btn btn-secondary w-100">Enviar Validades</button>
+                                        <button type="submit" class="btn btn-secondary w-100">Enviar Validades de Motoristas</button>
                                     </form>
                                 </div>
                             </div>
@@ -128,12 +130,12 @@
                             <div class="card h-100">
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title">Doc. Veículo</h5>
-                                    <p class="card-text"><small>Colunas: <code>placa_veiculo</code>, <code>nome_documento</code>, <code>data_vencimento</code>.</small></p>
+                                    <p class="card-text"><small>Colunas: <code>Tipo evento</code>, <code>Nome</code> (placa), <code>Data vencimento</code>.</small></p>
                                     <form action="{{ url_for('admin.upload_doc_veiculo') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
                                         <div class="mb-3">
-                                            <input class="form-control" type="file" name="arquivo" required>
+                                            <input class="form-control" type="file" name="documentos-veiculo-file" required>
                                         </div>
-                                        <button type="submit" class="btn btn-secondary w-100">Enviar Validades</button>
+                                        <button type="submit" class="btn btn-secondary w-100">Enviar Validades de Veículos</button>
                                     </form>
                                 </div>
                             </div>

@@ -49,7 +49,6 @@ class Empresa(db.Model):
     cnpj = db.Column(db.String(18), unique=True, nullable=False)
     status = db.Column(db.String(50), nullable=False, default='ativa')
     
-    # Relações
     usuarios = relationship('Usuario', backref='empresa', lazy='dynamic')
     motoristas = relationship('Motorista', back_populates='empresa', lazy='dynamic')
     veiculos = relationship('Veiculo', back_populates='empresa', lazy='dynamic')
@@ -131,7 +130,6 @@ class DocumentoFiscal(db.Model):
     empresa_id = db.Column(db.Integer, db.ForeignKey('empresas.id'), nullable=False)
 
     empresa = relationship('Empresa', back_populates='documentos_fiscais')
-
     __table_args__ = (db.UniqueConstraint('empresa_id', 'nome_documento', name='_empresa_docfiscal_uc'),)
 
     @validates('nome_documento')
@@ -143,10 +141,9 @@ class DocumentoMotorista(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome_documento = db.Column(db.String(120), nullable=False)
     data_vencimento = db.Column(db.Date, nullable=False)
-    motorista_id = db.Column(db.Integer, db.ForeignKey('motoristas.id'), nullable=False)
+    motorista_id = db.Column(db.Integer, db.ForeignKey('motoristas.id'), nullable=True)
 
     motorista = relationship('Motorista', back_populates='documentos')
-
     __table_args__ = (db.UniqueConstraint('motorista_id', 'nome_documento', name='_motorista_documento_uc'),)
 
     @validates('nome_documento')
@@ -158,10 +155,9 @@ class DocumentoVeiculo(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nome_documento = db.Column(db.String(120), nullable=False)
     data_vencimento = db.Column(db.Date, nullable=False)
-    veiculo_id = db.Column(db.Integer, db.ForeignKey('veiculos.id'), nullable=False)
+    veiculo_id = db.Column(db.Integer, db.ForeignKey('veiculos.id'), nullable=True)
 
     veiculo = relationship('Veiculo', back_populates='documentos')
-
     __table_args__ = (db.UniqueConstraint('veiculo_id', 'nome_documento', name='_veiculo_documento_uc'),)
 
     @validates('nome_documento')
