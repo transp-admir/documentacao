@@ -5,12 +5,14 @@ from itsdangerous import URLSafeTimedSerializer
 import re
 from datetime import date, timedelta
 from sqlalchemy.orm import joinedload
+from sqlalchemy import distinct
 
 # Imports para a nova funcionalidade de upload
 import pandas as pd
 from datetime import datetime
 from .. import db
-from ..models import Empresa, DocumentoFiscal, Motorista, Veiculo, DocumentoMotorista, DocumentoVeiculo, format_cnpj, format_cpf
+from ..models import (Empresa, DocumentoFiscal, Motorista, Veiculo, DocumentoMotorista, 
+DocumentoVeiculo, ConfiguracaoAlerta, format_cnpj, format_cpf)
 
 # Aplica o decorador a TODAS as rotas deste blueprint
 @admin_bp.before_request
@@ -478,60 +480,117 @@ def upload_doc_veiculo():
     return handle_upload_and_process(required, process)
 
 
+# --- ROTA DO PAINEL PRINCIPAL (DASHBOARD) ---
+
 @admin_bp.route('/')
 def admin_dashboard():
     today = date.today()
-    thirty_days_from_now = today + timedelta(days=30)
+    search_term = request.args.get('q', '').strip()
+    hide_vencidos = request.args.get('hide_vencidos', 'false').lower() == 'true'
 
-    # Consulta otimizada usando joinedload com os relacionamentos corretos
-    docs_fiscais = DocumentoFiscal.query.options(joinedload(DocumentoFiscal.empresa)).filter(
-        DocumentoFiscal.data_vencimento <= thirty_days_from_now).all()
+    configs = ConfiguracaoAlerta.query.all()
+    alert_configs = {config.nome_documento: config.prazo_alerta_dias for config in configs}
+    default_prazo = 30
 
-    docs_motoristas = DocumentoMotorista.query.options(joinedload(DocumentoMotorista.motorista).joinedload(Motorista.empresa)).filter(
-        DocumentoMotorista.data_vencimento <= thirty_days_from_now).all()
+    all_alert_items = []
 
-    docs_veiculos = DocumentoVeiculo.query.options(joinedload(DocumentoVeiculo.veiculo).joinedload(Veiculo.empresa)).filter(
-        DocumentoVeiculo.data_vencimento <= thirty_days_from_now).all()
+    # Funções para buscar e processar documentos
+    def process_docs(query, type, description_format):
+        if search_term:
+            if type == 'Empresa':
+                query = query.join(Empresa).filter(Empresa.razao_social.ilike(f"%{search_term}%"))
+            else:
+                OwnerModel = Motorista if type == 'Motorista' else Veiculo
+                query = query.join(OwnerModel).join(Empresa).filter(Empresa.razao_social.ilike(f"%{search_term}%"))
+        
+        for doc in query.all():
+            prazo = alert_configs.get(doc.nome_documento, default_prazo)
+            due_date_limit = today + timedelta(days=prazo)
+            if doc.data_vencimento <= due_date_limit:
+                owner_name = ''
+                if type == 'Empresa':
+                    owner_name = doc.empresa.razao_social
+                    item_description = description_format.format(nome=doc.nome_documento)
+                elif type == 'Motorista':
+                    owner_name = doc.motorista.empresa.razao_social
+                    item_description = description_format.format(nome=doc.nome_documento, owner=doc.motorista.nome.split()[0])
+                elif type == 'Veículo':
+                    owner_name = doc.veiculo.empresa.razao_social
+                    item_description = description_format.format(nome=doc.nome_documento, owner=doc.veiculo.placa)
 
-    # Unificar e processar os alertas
-    alert_items = []
-    for doc in docs_fiscais:
-        days_left = (doc.data_vencimento - today).days
-        alert_items.append({
-            'item_description': doc.nome_documento,
-            'item_type': 'Empresa',
-            'owner_name': doc.empresa.razao_social,
-            'due_date': doc.data_vencimento,
-            'days_left': days_left
-        })
+                all_alert_items.append({
+                    'item_description': item_description,
+                    'item_type': type,
+                    'owner_name': owner_name,
+                    'due_date': doc.data_vencimento,
+                    'days_left': (doc.data_vencimento - today).days
+                })
 
-    for doc in docs_motoristas:
-        days_left = (doc.data_vencimento - today).days
-        alert_items.append({
-            'item_description': f"{doc.nome_documento} de {doc.motorista.nome.split()[0]}",
-            'item_type': 'Motorista',
-            'owner_name': doc.motorista.empresa.razao_social,
-            'due_date': doc.data_vencimento,
-            'days_left': days_left
-        })
+    # Processa todos os tipos de documentos
+    process_docs(DocumentoFiscal.query.options(joinedload(DocumentoFiscal.empresa)), 'Empresa', '{nome}')
+    process_docs(DocumentoMotorista.query.options(joinedload(DocumentoMotorista.motorista).joinedload(Motorista.empresa)), 'Motorista', '{nome} de {owner}')
+    process_docs(DocumentoVeiculo.query.options(joinedload(DocumentoVeiculo.veiculo).joinedload(Veiculo.empresa)), 'Veículo', '{nome} - {owner}')
 
-    for doc in docs_veiculos:
-        days_left = (doc.data_vencimento - today).days
-        alert_items.append({
-            'item_description': f"{doc.nome_documento} - {doc.veiculo.placa}",
-            'item_type': 'Veículo',
-            'owner_name': doc.veiculo.empresa.razao_social,
-            'due_date': doc.data_vencimento,
-            'days_left': days_left
-        })
+    # Calcula as contagens ANTES de qualquer filtro de visualização
+    vencidos_count = sum(1 for item in all_alert_items if item['days_left'] <= 0)
+    critical_alerts_count = sum(1 for item in all_alert_items if 0 < item['days_left'] <= 7)
 
-    alert_items.sort(key=lambda x: x['days_left'])
+    # Agora, aplica o filtro de visualização para a tabela
+    display_items = all_alert_items
+    if hide_vencidos:
+        display_items = [item for item in display_items if item['days_left'] > 0]
 
-    critical_alerts_count = sum(1 for item in alert_items if item['days_left'] <= 7)
-    next_30_days_count = len(alert_items)
+    display_items.sort(key=lambda x: x['days_left'])
 
-    return render_template('admin/adm.html', 
-                           alert_items=alert_items, 
-                           critical_alerts_count=critical_alerts_count,
-                           next_30_days_count=next_30_days_count)
+    return render_template('admin/adm.html',
+                           alert_items=display_items,
+                           vencidos_count=vencidos_count, # Novo contador
+                           critical_alerts_count=critical_alerts_count, # Contador corrigido
+                           total_list_count=len(display_items), # Contador para o card de total
+                           search_term=search_term,
+                           hide_vencidos=hide_vencidos)
 
+
+
+@admin_bp.route('/configuracoes', methods=['GET'])
+def gerenciar_configuracoes():
+    # Coleta todos os nomes de documentos únicos de todas as tabelas de documentos
+    doc_fiscais = db.session.query(distinct(DocumentoFiscal.nome_documento)).all()
+    doc_motoristas = db.session.query(distinct(DocumentoMotorista.nome_documento)).all()
+    doc_veiculos = db.session.query(distinct(DocumentoVeiculo.nome_documento)).all()
+
+    # Unifica e formata a lista de tipos de documento
+    all_doc_types = sorted(list(set([item[0] for item in doc_fiscais + doc_motoristas + doc_veiculos])))
+
+    # Busca as configurações existentes
+    configs = ConfiguracaoAlerta.query.all()
+    configs_dict = {config.nome_documento: config.prazo_alerta_dias for config in configs}
+
+    # Monta o dicionário final para o template, garantindo que todos os tipos de documento tenham uma entrada
+    # Se uma configuração não existir, usa o default do modelo (30 dias)
+    final_configs = {doc_type: configs_dict.get(doc_type, 30) for doc_type in all_doc_types}
+    
+    return render_template('admin/configuracoes.html', configuracoes=final_configs)
+
+@admin_bp.route('/configuracoes/salvar', methods=['POST'])
+def salvar_configuracoes():
+    try:
+        for key, value in request.form.items():
+            if key.startswith('prazo_'):
+                doc_name = key.replace('prazo_', '')
+                prazo_dias = int(value)
+
+                config = ConfiguracaoAlerta.query.filter_by(nome_documento=doc_name).first()
+                if config:
+                    config.prazo_alerta_dias = prazo_dias
+                else:
+                    nova_config = ConfiguracaoAlerta(nome_documento=doc_name, prazo_alerta_dias=prazo_dias)
+                    db.session.add(nova_config)
+        
+        db.session.commit()
+        flash('Configurações de alerta salvas com sucesso!', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Erro ao salvar as configurações: {e}', 'danger')
+
+    return redirect(url_for('admin.gerenciar_configuracoes'))

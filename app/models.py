@@ -28,6 +28,18 @@ def convert_to_uppercase(value):
         return value.upper()
     return value
 
+# --- Modelo de Configuração ---
+
+class ConfiguracaoAlerta(db.Model):
+    __tablename__ = 'configuracoes_alertas'
+    id = db.Column(db.Integer, primary_key=True)
+    nome_documento = db.Column(db.String(120), unique=True, nullable=False)
+    prazo_alerta_dias = db.Column(db.Integer, nullable=False, default=30)
+
+    @validates('nome_documento')
+    def validate_uppercase(self, key, value):
+        return convert_to_uppercase(value)
+
 # --- Modelos Principais ---
 
 class Empresa(db.Model):

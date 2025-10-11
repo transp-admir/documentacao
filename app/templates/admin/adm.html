@@ -13,6 +13,7 @@
         <li class="{{ 'active' if 'admin.gerenciar_motoristas' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_motoristas') }}"><i class="fas fa-user-tie"></i> Gerenciar Motoristas</a></li>
         <li class="{{ 'active' if 'admin.gerenciar_veiculos' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_veiculos') }}"><i class="fas fa-truck"></i> Gerenciar Veículos</a></li>
         <li class="{{ 'active' if 'admin.upload_page' in current_page else '' }}"><a href="{{ url_for('admin.upload_page') }}"><i class="fas fa-file-upload"></i> Upload de Documentos</a></li>
+        <li class="{{ 'active' if 'admin.gerenciar_configuracoes' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_configuracoes') }}"><i class="fas fa-cogs"></i> Configurações</a></li>
         <li class="{{ 'active' if 'admin.gerar_convite' in current_page else '' }}"><a href="{{ url_for('admin.gerar_convite') }}"><i class="fas fa-link"></i> Convidar Empresa</a></li>
     </ul>
     <ul class="sidebar-nav">
@@ -35,11 +36,11 @@
         {# Cards de Resumo Dinâmicos #}
         <div class="row mb-4">
             <div class="col-lg-4 col-md-6 mb-3">
-                <div class="card h-100">
-                    <div class="card-body d-flex flex-column">
-                        <h5 class="card-title"><i class="fas fa-plus-circle"></i> Nova Empresa</h5>
-                        <p class="card-text">Gerar um link de registro seguro para uma nova transportadora se cadastrar no sistema.</p>
-                        <a href="{{ url_for('admin.gerar_convite') }}" class="btn btn-primary mt-auto">Gerar Convite</a>
+                <div class="card text-white bg-dark h-100">
+                    <div class="card-body">
+                        <h5 class="card-title"><i class="fas fa-calendar-times"></i> Documentos Vencidos</h5>
+                        <p class="card-text fs-4">{{ vencidos_count }}</p>
+                        <small>Total de itens com data expirada.</small>
                     </div>
                 </div>
             </div>
@@ -48,16 +49,16 @@
                     <div class="card-body">
                         <h5 class="card-title"><i class="fas fa-exclamation-circle"></i> Alertas Críticos</h5>
                         <p class="card-text fs-4">{{ critical_alerts_count }}</p>
-                        <small>Vencidos ou vencendo em 7 dias</small>
+                        <small>Vencendo nos próximos 7 dias.</small>
                     </div>
                 </div>
             </div>
             <div class="col-lg-4 col-md-12 mb-3">
-                <div class="card text-dark bg-warning h-100">
+                <div class="card text-dark bg-info h-100">
                     <div class="card-body">
-                        <h5 class="card-title"><i class="fas fa-exclamation-triangle"></i> Próximos 30 dias</h5>
-                        <p class="card-text fs-4">{{ next_30_days_count }}</p>
-                        <small>Total de itens vencendo no período</small>
+                        <h5 class="card-title"><i class="fas fa-list-ul"></i> Total na Lista</h5>
+                        <p class="card-text fs-4">{{ total_list_count }}</p>
+                        <small>Itens exibidos na tabela abaixo.</small>
                     </div>
                 </div>
             </div>
@@ -65,8 +66,30 @@
 
         {# Tabela Dinâmica de Vencimentos #}
         <div class="card">
-            <div class="card-header">
-                <h4><i class="fas fa-bell"></i> Itens Requerendo Atenção</h4>
+            <div class="card-header d-flex justify-content-between align-items-center flex-wrap">
+                <h4 class="me-3"><i class="fas fa-bell"></i> Itens Requerendo Atenção</h4>
+                
+                <div class="d-flex align-items-center mt-2 mt-md-0">
+                    
+                    {# Botão para Filtrar Vencidos #}
+                    {% if hide_vencidos %}
+                        <a href="{{ url_for('admin.admin_dashboard', q=search_term or '', hide_vencidos='false') }}" class="btn btn-outline-primary me-2">
+                            <i class="fas fa-eye"></i> Mostrar Vencidos
+                        </a>
+                    {% else %}
+                        <a href="{{ url_for('admin.admin_dashboard', q=search_term or '', hide_vencidos='true') }}" class="btn btn-primary me-2">
+                            <i class="fas fa-eye-slash"></i> Ocultar Vencidos
+                        </a>
+                    {% endif %}
+
+                    {# Formulário de Busca #}
+                    <form method="GET" action="{{ url_for('admin.admin_dashboard') }}" class="d-flex">
+                        <input type="hidden" name="hide_vencidos" value="{{ 'true' if hide_vencidos else 'false' }}">
+                        <input type="text" name="q" class="form-control" placeholder="Filtrar por Razão Social..." value="{{ search_term or '' }}">
+                        <button type="submit" class="btn btn-secondary ms-1"><i class="fas fa-search"></i></button>
+                        <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-outline-secondary ms-1" title="Limpar Filtros"><i class="fas fa-times"></i></a>
+                    </form>
+                </div>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
@@ -103,7 +126,13 @@
                                 {% endfor %}
                             {% else %}
                                 <tr>
-                                    <td colspan="6" class="text-center py-4">Nenhum item requerendo atenção no momento.</td>
+                                    <td colspan="6" class="text-center py-4">
+                                        {% if search_term or hide_vencidos %}
+                                            Nenhum item encontrado com os filtros atuais.
+                                        {% else %}
+                                            Nenhum item requerendo atenção no momento.
+                                        {% endif %}
+                                    </td>
                                 </tr>
                             {% endif %}
                         </tbody>
