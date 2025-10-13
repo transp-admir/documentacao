@@ -6,6 +6,9 @@ import re
 from datetime import date, timedelta
 from sqlalchemy.orm import joinedload
 from sqlalchemy import distinct
+from sqlalchemy import or_, func, literal_column
+import re
+
 
 # Imports para a nova funcionalidade de upload
 import pandas as pd
@@ -573,92 +576,158 @@ def upload_doc_veiculo():
 
 @admin_bp.route('/')
 def admin_dashboard():
+    """
+    Painel principal (Dashboard) que exibe um resumo dos vencimentos de documentos,
+    respeitando e aplicando corretamente os prazos de alerta configurados pelo usuário.
+    """
     today = date.today()
-    search_term = request.args.get('q', '').strip()
-    hide_vencidos = request.args.get('hide_vencidos', 'false').lower() == 'true'
+    
+    entidade_filter = request.args.get('entidade', '')
+    empresa_id_filter = request.args.get('empresa_id', '')
+    status_filter = request.args.get('status', '')
+    search_query = request.args.get('q', '').strip()
+    hide_expired = request.args.get('hide_expired', 'false').lower() == 'true'
 
     configs = ConfiguracaoAlerta.query.all()
-    alert_configs = {config.nome_documento: config.prazo_alerta_dias for config in configs}
+    configs_dict = {config.nome_documento.upper(): config.prazo_alerta_dias for config in configs}
     default_prazo = 30
+    # **CORREÇÃO: 'CVVTR' foi adicionado à lista para consistência**
+    known_generic_types = ['CVVTR', 'CIV', 'CIPP', 'CRLV', 'ANTT', 'CNH', 'ASO', 'ALVARÁ', 'LICENCIAMENTO']
 
-    all_alert_items = []
+    queries = []
+    q_motoristas = db.session.query(literal_column("'Motorista'").label('type'), Motorista.nome.label('name'), DocumentoMotorista.nome_documento.label('document_type'), Empresa.razao_social.label('empresa_name'), DocumentoMotorista.data_vencimento.label('due_date'), Motorista.id.label('owner_id'), Empresa.id.label('empresa_id')).join(Motorista, DocumentoMotorista.motorista_id == Motorista.id).join(Empresa, Motorista.empresa_id == Empresa.id)
+    q_veiculos = db.session.query(literal_column("'Veículo'").label('type'), Veiculo.placa.label('name'), DocumentoVeiculo.nome_documento.label('document_type'), Empresa.razao_social.label('empresa_name'), DocumentoVeiculo.data_vencimento.label('due_date'), Veiculo.id.label('owner_id'), Empresa.id.label('empresa_id')).join(Veiculo, DocumentoVeiculo.veiculo_id == Veiculo.id).join(Empresa, Veiculo.empresa_id == Empresa.id)
+    q_empresas = db.session.query(literal_column("'Empresa'").label('type'), Empresa.razao_social.label('name'), DocumentoFiscal.nome_documento.label('document_type'), Empresa.razao_social.label('empresa_name'), DocumentoFiscal.data_vencimento.label('due_date'), Empresa.id.label('owner_id'), Empresa.id.label('empresa_id')).join(Empresa, DocumentoFiscal.empresa_id == Empresa.id)
 
-    # Função interna robusta para processar documentos
-    def process_docs(query, doc_type, description_format, owner_relation_name, owner_attr_name):
-        # A lógica de busca pode ser adicionada aqui se necessário
-        for doc in query.all():
-            prazo = alert_configs.get(doc.nome_documento.upper(), default_prazo)
-            due_date_limit = today + timedelta(days=prazo)
+    if not entidade_filter or entidade_filter == 'motorista': queries.append(q_motoristas)
+    if not entidade_filter or entidade_filter == 'veiculo': queries.append(q_veiculos)
+    if not entidade_filter or entidade_filter == 'empresa': queries.append(q_empresas)
 
-            if doc.data_vencimento <= due_date_limit:
-                # 1. Pega o objeto relacionado (motorista, veiculo, empresa) de forma segura
-                owner = getattr(doc, owner_relation_name, None)
+    final_items = []
+    if queries:
+        unioned_query = queries[0].union_all(*queries[1:])
+        subquery = unioned_query.subquery()
+        query_to_filter = db.session.query(subquery)
 
-                # 2. Define nomes padrão
-                owner_name = 'Não Associado'
-                company_name = 'Não Associado'
+        if empresa_id_filter:
+            query_to_filter = query_to_filter.filter(subquery.c.empresa_id == empresa_id_filter)
+        if search_query:
+            search_term = f"%{search_query}%"
+            query_to_filter = query_to_filter.filter(or_(subquery.c.name.ilike(search_term), subquery.c.document_type.ilike(search_term)))
+        
+        all_results = query_to_filter.all()
 
-                # 3. Se o objeto relacionado existir, pega os nomes corretos
-                if owner:
-                    owner_name = getattr(owner, owner_attr_name, 'N/A')
-                    if doc_type == 'Empresa':
-                        company_name = owner_name
-                    else:
-                        company = getattr(owner, 'empresa', None)
-                        company_name = company.razao_social if company else 'Sem Empresa'
-                
-                item_description = description_format.format(nome=doc.nome_documento, owner=owner_name)
-                all_alert_items.append({
-                    'item_description': item_description,
-                    'item_type': doc_type,
-                    'owner_name': company_name,
-                    'due_date': doc.data_vencimento,
-                    'days_left': (doc.data_vencimento - today).days
-                })
+        for row in all_results:
+            doc_name_upper = str(row.document_type).upper()
+            prazo_alerta = default_prazo
+            
+            found_generic = False
+            for generic_type in known_generic_types:
+                type_to_check = 'ALVARA' if generic_type == 'ALVARÁ' else generic_type
+                if type_to_check in doc_name_upper:
+                    prazo_alerta = configs_dict.get(generic_type, default_prazo)
+                    found_generic = True
+                    break
+            
+            if not found_generic:
+                cleaned_name_for_logic = re.sub(r'[\s\d.-]+$', '', doc_name_upper.replace('DOCUMENTO', '').strip()).strip()
+                if cleaned_name_for_logic in configs_dict:
+                    prazo_alerta = configs_dict.get(cleaned_name_for_logic, default_prazo)
 
-    # Processa cada tipo de documento com a nova lógica segura
-    process_docs(DocumentoFiscal.query.options(joinedload(DocumentoFiscal.empresa)), 'Empresa', '{nome}', 'empresa', 'razao_social')
-    process_docs(DocumentoMotorista.query.options(joinedload(DocumentoMotorista.motorista).joinedload(Motorista.empresa)), 'Motorista', '{nome} de {owner}', 'motorista', 'nome')
-    process_docs(DocumentoVeiculo.query.options(joinedload(DocumentoVeiculo.veiculo).joinedload(Veiculo.empresa)), 'Veículo', '{nome} - {owner}', 'veiculo', 'placa')
+            days_left = (row.due_date - today).days
+            
+            current_status = 'ok'
+            if days_left < 0:
+                current_status = 'vencido'
+            elif days_left <= prazo_alerta:
+                current_status = 'vencendo'
+            
+            if not status_filter and current_status == 'ok':
+                continue
+            if status_filter and current_status != status_filter:
+                continue
+            if hide_expired and current_status == 'vencido':
+                continue
 
-    vencidos_count = sum(1 for item in all_alert_items if item['days_left'] <= 0)
-    critical_alerts_count = sum(1 for item in all_alert_items if 0 < item['days_left'] <= 7)
+            cleaned_doc_display_name = str(row.document_type)
+            cleaned_doc_display_name = re.sub(r'\s*(NAME|DTYPE):.*', '', cleaned_doc_display_name, flags=re.IGNORECASE).strip()
+            cleaned_doc_display_name = re.sub(r'DOCUMENTO', '', cleaned_doc_display_name, flags=re.IGNORECASE).strip()
+            cleaned_doc_display_name = re.sub(r'\s+', ' ', cleaned_doc_display_name).strip().upper()
 
-    display_items = all_alert_items
-    if hide_vencidos:
-        display_items = [item for item in display_items if item['days_left'] > 0]
+            url = url_for('admin.gerenciar_empresas')
+            if row.type == 'Motorista': url = url_for('admin.gerenciar_motoristas')
+            elif row.type == 'Veículo': url = url_for('admin.gerenciar_veiculos')
 
-    display_items.sort(key=lambda x: x['days_left'])
+            final_items.append({
+                'type': row.type, 'name': row.name, 'document_type': cleaned_doc_display_name,
+                'empresa_name': row.empresa_name, 'due_date': row.due_date,
+                'days_left': days_left, 'url': url,
+                'status': current_status
+            })
+        
+        final_items.sort(key=lambda x: x['days_left'])
 
-    return render_template('admin/adm.html',
-                           alert_items=display_items,
-                           vencidos_count=vencidos_count,
-                           critical_alerts_count=critical_alerts_count,
-                           total_list_count=len(display_items),
-                           search_term=search_term,
-                           hide_vencidos=hide_vencidos)
+    t_plus_30 = today + timedelta(days=30)
+    counts = {
+        'vencidos': (db.session.query(func.count(DocumentoMotorista.id)).filter(DocumentoMotorista.data_vencimento < today).scalar() + db.session.query(func.count(DocumentoVeiculo.id)).filter(DocumentoVeiculo.data_vencimento < today).scalar() + db.session.query(func.count(DocumentoFiscal.id)).filter(DocumentoFiscal.data_vencimento < today).scalar()),
+        'vencendo_30d': (db.session.query(func.count(DocumentoMotorista.id)).filter(DocumentoMotorista.data_vencimento.between(today, t_plus_30)).scalar() + db.session.query(func.count(DocumentoVeiculo.id)).filter(DocumentoVeiculo.data_vencimento.between(today, t_plus_30)).scalar() + db.session.query(func.count(DocumentoFiscal.id)).filter(DocumentoFiscal.data_vencimento.between(today, t_plus_30)).scalar()),
+        'empresas': db.session.query(func.count(Empresa.id)).scalar(),
+        'motoristas': db.session.query(func.count(Motorista.id)).scalar()
+    }
+    todas_empresas = Empresa.query.order_by(Empresa.razao_social).all()
+    
+    return render_template('admin/adm.html', items=final_items, counts=counts, empresas=todas_empresas, hide_expired=hide_expired, request=request)
 
 
 
 @admin_bp.route('/configuracoes', methods=['GET'])
 def gerenciar_configuracoes():
-    # Coleta todos os nomes de documentos únicos de todas as tabelas de documentos
+    """
+    Exibe a página de configurações, agrupando todos os documentos por tipos genéricos
+    e limpando os nomes para facilitar a configuração dos prazos de alerta.
+    """
     doc_fiscais = db.session.query(distinct(DocumentoFiscal.nome_documento)).all()
     doc_motoristas = db.session.query(distinct(DocumentoMotorista.nome_documento)).all()
     doc_veiculos = db.session.query(distinct(DocumentoVeiculo.nome_documento)).all()
 
-    # Unifica e formata a lista de tipos de documento
-    all_doc_types = sorted(list(set([item[0] for item in doc_fiscais + doc_motoristas + doc_veiculos])))
+    raw_doc_names = [item[0] for item in doc_fiscais + doc_motoristas + doc_veiculos if item and item[0]]
 
-    # Busca as configurações existentes
+    # **CORREÇÃO: 'CVVTR' foi adicionado à lista**
+    known_generic_types = ['CVVTR', 'CIV', 'CIPP', 'CRLV', 'ANTT', 'CNH', 'ASO', 'ALVARÁ', 'LICENCIAMENTO']
+    
+    clean_doc_types = set()
+
+    for raw_name in raw_doc_names:
+        name_upper = str(raw_name).upper()
+        name_upper = re.sub(r'\s*(NAME|DTYPE):.*', '', name_upper).strip()
+
+        if not name_upper:
+            continue
+
+        found = False
+        for generic_type in known_generic_types:
+            type_to_check = 'ALVARA' if generic_type == 'ALVARÁ' else generic_type
+            if type_to_check in name_upper:
+                clean_doc_types.add(generic_type)
+                found = True
+                break
+        
+        if not found:
+            cleaned_name = name_upper.replace('DOCUMENTO', '').strip()
+            cleaned_name = re.sub(r'[\s\d.-]+$', '', cleaned_name).strip()
+            if cleaned_name:
+                clean_doc_types.add(cleaned_name)
+
+    sorted_doc_types = sorted(list(clean_doc_types))
+
     configs = ConfiguracaoAlerta.query.all()
-    configs_dict = {config.nome_documento: config.prazo_alerta_dias for config in configs}
+    configs_dict = {config.nome_documento.upper(): config.prazo_alerta_dias for config in configs}
 
-    # Monta o dicionário final para o template, garantindo que todos os tipos de documento tenham uma entrada
-    # Se uma configuração não existir, usa o default do modelo (30 dias)
-    final_configs = {doc_type: configs_dict.get(doc_type, 30) for doc_type in all_doc_types}
+    default_prazo = 30
+    final_configs = {doc_type: configs_dict.get(doc_type, default_prazo) for doc_type in sorted_doc_types}
     
     return render_template('admin/configuracoes.html', configuracoes=final_configs)
+
 
 @admin_bp.route('/configuracoes/salvar', methods=['POST'])
 def salvar_configuracoes():
