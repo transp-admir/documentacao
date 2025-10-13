@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Teste Simples de CNPJ</title>
+</head>
+<body>
+    <h1>Teste de Consulta de CNPJ</h1>
+    <p>Digite um CNPJ e saia do campo (pressione Tab ou clique fora) para ver o resultado abaixo.</p>
+
+    <hr>
+
+    <label for="cnpj_input"><strong>CNPJ:</strong></label>
+    <input type="text" id="cnpj_input" placeholder="Digite o CNPJ aqui" size="30">
+
+    <hr>
+
+    <h2>Resultado da Busca:</h2>
+    <div id="resultado" style="font-family: monospace; background-color: #f0f0f0; padding: 10px; border-radius: 5px;">
+        Aguardando a digitação do CNPJ...
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const cnpjInput = document.getElementById('cnpj_input');
+            const resultadoDiv = document.getElementById('resultado');
+
+            cnpjInput.addEventListener('blur', function() {
+                const cnpjValue = this.value.replace(/\D/g, ''); // Remove caracteres não numéricos
+                resultadoDiv.textContent = 'Consultando...';
+
+                if (cnpjValue.length === 14) {
+                    // A URL da sua API de consulta
+                    const url = `/consultar-cnpj/${cnpjValue}`;
+
+                    fetch(url)
+                        .then(response => {
+                            if (!response.ok) {
+                                throw new Error(`Erro na resposta do servidor: ${response.status}`);
+                            }
+                            return response.json();
+                        })
+                        .then(data => {
+                            // Exibe o JSON completo recebido do servidor
+                            resultadoDiv.textContent = JSON.stringify(data, null, 2);
+                        })
+                        .catch(error => {
+                            resultadoDiv.textContent = `Erro na consulta: ${error.message}`;
+                            console.error('Erro no fetch:', error);
+                        });
+                } else {
+                    resultadoDiv.textContent = 'CNPJ inválido. Deve conter 14 dígitos.';
+                }
+            });
+        });
+    </script>
+</body>
+</html>

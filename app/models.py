@@ -45,7 +45,8 @@ class ConfiguracaoAlerta(db.Model):
 class Empresa(db.Model):
     __tablename__ = 'empresas'
     id = db.Column(db.Integer, primary_key=True)
-    razao_social = db.Column(db.String(120), nullable=False)
+    # **CORREÇÃO**: Garante que a Razão Social seja única no banco de dados.
+    razao_social = db.Column(db.String(120), unique=True, nullable=False)
     cnpj = db.Column(db.String(18), unique=True, nullable=False)
     status = db.Column(db.String(50), nullable=False, default='ativa')
     
