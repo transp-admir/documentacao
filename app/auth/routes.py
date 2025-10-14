@@ -5,6 +5,7 @@ from itsdangerous import URLSafeTimedSerializer, SignatureExpired, BadTimeSignat
 import re
 from sqlalchemy.exc import IntegrityError
 
+
 from . import auth_bp
 from ..models import db, Usuario, Empresa, format_cnpj
 from .forms import RegistrationForm, RegistroEmpresaForm
@@ -23,9 +24,11 @@ def login():
     if user and user.check_password(password) and user.is_active:
         login_user(user)
         flash('Login realizado com sucesso!', 'success')
-        if user.role == 'master':
+        # Redireciona 'master' e 'comum' para o mesmo dashboard
+        if user.role == 'master' or user.role == 'comum':
             return redirect(url_for('admin.admin_dashboard'))
         else:
+            # Mantém outros roles (se houver) na página principal
             return redirect(url_for('main.index'))
     else:
         flash('Usuário ou senha inválido, ou sua conta está inativa.', 'danger')
@@ -79,9 +82,8 @@ def registrar_por_convite(token):
             db.session.add(novo_usuario)
             db.session.commit()
 
-            login_user(novo_usuario)
-            flash('Cadastro finalizado com sucesso! Bem-vindo(a) ao sistema.', 'success')
-            return redirect(url_for('main.index'))
+            flash('Cadastro finalizado com sucesso! Faça o login para continuar.', 'success')
+            return redirect(url_for('auth.login_page'))
 
         except IntegrityError:
             db.session.rollback()

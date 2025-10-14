@@ -8,6 +8,8 @@ from sqlalchemy.orm import joinedload
 from sqlalchemy import distinct
 from sqlalchemy import or_, func, literal_column
 import re
+from flask_login import current_user
+
 
 
 # Imports para a nova funcionalidade de upload
@@ -27,8 +29,12 @@ def require_admin_access():
 
 @admin_bp.route('/empresas')
 def gerenciar_empresas():
-    # Ordena as empresas pelo nome para melhor visualização
-    todas_empresas = Empresa.query.order_by(Empresa.razao_social).all()
+    query = Empresa.query.order_by(Empresa.razao_social)
+    # Se o usuário não for 'master', filtra para mostrar apenas a sua empresa
+    if current_user.role != 'master':
+        query = query.filter_by(id=current_user.empresa_id)
+    
+    todas_empresas = query.all()
     return render_template('admin/gerenciar_empresas.html', empresas=todas_empresas)
 
 
@@ -136,14 +142,23 @@ def toggle_usuario_status(usuario_id):
 
 @admin_bp.route('/motoristas')
 def gerenciar_motoristas():
-    # Usar 'options' com 'joinedload' para otimizar a busca, evitando múltiplas queries para buscar a empresa de cada motorista.
-    todos_motoristas = Motorista.query.options(db.joinedload(Motorista.empresa)).order_by(Motorista.nome).all()
+    query = Motorista.query.options(db.joinedload(Motorista.empresa)).order_by(Motorista.nome)
+    # Se o usuário não for 'master', filtra pelos motoristas da sua empresa
+    if current_user.role != 'master':
+        query = query.filter_by(empresa_id=current_user.empresa_id)
+        
+    todos_motoristas = query.all()
     return render_template('admin/gerenciar_motoristas.html', motoristas=todos_motoristas)
+
 
 @admin_bp.route('/veiculos')
 def gerenciar_veiculos():
-    # Otimização similar para veículos, carregando a empresa associada.
-    todos_veiculos = Veiculo.query.options(db.joinedload(Veiculo.empresa)).order_by(Veiculo.placa).all()
+    query = Veiculo.query.options(db.joinedload(Veiculo.empresa)).order_by(Veiculo.placa)
+    # Se o usuário não for 'master', filtra pelos veículos da sua empresa
+    if current_user.role != 'master':
+        query = query.filter_by(empresa_id=current_user.empresa_id)
+        
+    todos_veiculos = query.all()
     return render_template('admin/gerenciar_veiculos.html', veiculos=todos_veiculos)
 
 # --- Rota da página de Upload ---
@@ -705,7 +720,7 @@ def upload_doc_veiculo():
 def admin_dashboard():
     """
     Painel principal (Dashboard) que exibe um resumo dos vencimentos de documentos,
-    respeitando e aplicando corretamente os prazos de alerta configurados pelo usuário.
+    filtrando os dados com base na empresa do usuário logado, se não for 'master'.
     """
     today = date.today()
     
@@ -715,17 +730,30 @@ def admin_dashboard():
     search_query = request.args.get('q', '').strip()
     hide_expired = request.args.get('hide_expired', 'false').lower() == 'true'
 
+    # Identifica o usuário e sua empresa. Se não for 'master', restringe a visão.
+    user_empresa_id = None
+    if current_user.role != 'master':
+        user_empresa_id = current_user.empresa_id
+        # Força o filtro para a empresa do usuário logado.
+        empresa_id_filter = user_empresa_id 
+
     configs = ConfiguracaoAlerta.query.all()
     configs_dict = {config.nome_documento.upper(): config.prazo_alerta_dias for config in configs}
     default_prazo = 30
-    # **CORREÇÃO: 'CVVTR' foi adicionado à lista para consistência**
     known_generic_types = ['CVVTR', 'CIV', 'CIPP', 'CRLV', 'ANTT', 'CNH', 'ASO', 'ALVARÁ', 'LICENCIAMENTO']
 
-    queries = []
+    # --- Base de Consultas ---
     q_motoristas = db.session.query(literal_column("'Motorista'").label('type'), Motorista.nome.label('name'), DocumentoMotorista.nome_documento.label('document_type'), Empresa.razao_social.label('empresa_name'), DocumentoMotorista.data_vencimento.label('due_date'), Motorista.id.label('owner_id'), Empresa.id.label('empresa_id')).join(Motorista, DocumentoMotorista.motorista_id == Motorista.id).join(Empresa, Motorista.empresa_id == Empresa.id)
     q_veiculos = db.session.query(literal_column("'Veículo'").label('type'), Veiculo.placa.label('name'), DocumentoVeiculo.nome_documento.label('document_type'), Empresa.razao_social.label('empresa_name'), DocumentoVeiculo.data_vencimento.label('due_date'), Veiculo.id.label('owner_id'), Empresa.id.label('empresa_id')).join(Veiculo, DocumentoVeiculo.veiculo_id == Veiculo.id).join(Empresa, Veiculo.empresa_id == Empresa.id)
     q_empresas = db.session.query(literal_column("'Empresa'").label('type'), Empresa.razao_social.label('name'), DocumentoFiscal.nome_documento.label('document_type'), Empresa.razao_social.label('empresa_name'), DocumentoFiscal.data_vencimento.label('due_date'), Empresa.id.label('owner_id'), Empresa.id.label('empresa_id')).join(Empresa, DocumentoFiscal.empresa_id == Empresa.id)
 
+    # Se o usuário for 'comum', aplica o filtro da empresa dele em todas as consultas.
+    if user_empresa_id:
+        q_motoristas = q_motoristas.filter(Motorista.empresa_id == user_empresa_id)
+        q_veiculos = q_veiculos.filter(Veiculo.empresa_id == user_empresa_id)
+        q_empresas = q_empresas.filter(DocumentoFiscal.empresa_id == user_empresa_id)
+
+    queries = []
     if not entidade_filter or entidade_filter == 'motorista': queries.append(q_motoristas)
     if not entidade_filter or entidade_filter == 'veiculo': queries.append(q_veiculos)
     if not entidade_filter or entidade_filter == 'empresa': queries.append(q_empresas)
@@ -736,8 +764,10 @@ def admin_dashboard():
         subquery = unioned_query.subquery()
         query_to_filter = db.session.query(subquery)
 
-        if empresa_id_filter:
+        # Aplica filtros de busca e de empresa (se for 'master')
+        if current_user.role == 'master' and empresa_id_filter:
             query_to_filter = query_to_filter.filter(subquery.c.empresa_id == empresa_id_filter)
+        
         if search_query:
             search_term = f"%{search_query}%"
             query_to_filter = query_to_filter.filter(or_(subquery.c.name.ilike(search_term), subquery.c.document_type.ilike(search_term)))
@@ -757,7 +787,7 @@ def admin_dashboard():
                     break
             
             if not found_generic:
-                cleaned_name_for_logic = re.sub(r'[\s\d.-]+$', '', doc_name_upper.replace('DOCUMENTO', '').strip()).strip()
+                cleaned_name_for_logic = re.sub(r'[\\s\\d.-]+$', '', doc_name_upper.replace('DOCUMENTO', '').strip()).strip()
                 if cleaned_name_for_logic in configs_dict:
                     prazo_alerta = configs_dict.get(cleaned_name_for_logic, default_prazo)
 
@@ -769,17 +799,13 @@ def admin_dashboard():
             elif days_left <= prazo_alerta:
                 current_status = 'vencendo'
             
-            if not status_filter and current_status == 'ok':
-                continue
-            if status_filter and current_status != status_filter:
-                continue
-            if hide_expired and current_status == 'vencido':
-                continue
+            if not status_filter and current_status == 'ok': continue
+            if status_filter and current_status != status_filter: continue
+            if hide_expired and current_status == 'vencido': continue
 
-            cleaned_doc_display_name = str(row.document_type)
-            cleaned_doc_display_name = re.sub(r'\s*(NAME|DTYPE):.*', '', cleaned_doc_display_name, flags=re.IGNORECASE).strip()
+            cleaned_doc_display_name = re.sub(r'\\s*(NAME|DTYPE):.*', '', str(row.document_type), flags=re.IGNORECASE).strip()
             cleaned_doc_display_name = re.sub(r'DOCUMENTO', '', cleaned_doc_display_name, flags=re.IGNORECASE).strip()
-            cleaned_doc_display_name = re.sub(r'\s+', ' ', cleaned_doc_display_name).strip().upper()
+            cleaned_doc_display_name = re.sub(r'\\s+', ' ', cleaned_doc_display_name).strip().upper()
 
             url = url_for('admin.gerenciar_empresas')
             if row.type == 'Motorista': url = url_for('admin.gerenciar_motoristas')
@@ -788,20 +814,50 @@ def admin_dashboard():
             final_items.append({
                 'type': row.type, 'name': row.name, 'document_type': cleaned_doc_display_name,
                 'empresa_name': row.empresa_name, 'due_date': row.due_date,
-                'days_left': days_left, 'url': url,
-                'status': current_status
+                'days_left': days_left, 'url': url, 'status': current_status
             })
         
         final_items.sort(key=lambda x: x['days_left'])
 
     t_plus_30 = today + timedelta(days=30)
+    
+    # --- Contadores filtrados por empresa ---
+    vencidos_motoristas = db.session.query(func.count(DocumentoMotorista.id)).filter(DocumentoMotorista.data_vencimento < today)
+    vencidos_veiculos = db.session.query(func.count(DocumentoVeiculo.id)).filter(DocumentoVeiculo.data_vencimento < today)
+    vencidos_empresas = db.session.query(func.count(DocumentoFiscal.id)).filter(DocumentoFiscal.data_vencimento < today)
+    
+    vencendo_motoristas = db.session.query(func.count(DocumentoMotorista.id)).filter(DocumentoMotorista.data_vencimento.between(today, t_plus_30))
+    vencendo_veiculos = db.session.query(func.count(DocumentoVeiculo.id)).filter(DocumentoVeiculo.data_vencimento.between(today, t_plus_30))
+    vencendo_empresas = db.session.query(func.count(DocumentoFiscal.id)).filter(DocumentoFiscal.data_vencimento.between(today, t_plus_30))
+
+    total_empresas = db.session.query(func.count(Empresa.id))
+    total_motoristas = db.session.query(func.count(Motorista.id))
+
+    if user_empresa_id:
+        vencidos_motoristas = vencidos_motoristas.join(Motorista).filter(Motorista.empresa_id == user_empresa_id)
+        vencidos_veiculos = vencidos_veiculos.join(Veiculo).filter(Veiculo.empresa_id == user_empresa_id)
+        vencidos_empresas = vencidos_empresas.filter(DocumentoFiscal.empresa_id == user_empresa_id)
+        
+        vencendo_motoristas = vencendo_motoristas.join(Motorista).filter(Motorista.empresa_id == user_empresa_id)
+        vencendo_veiculos = vencendo_veiculos.join(Veiculo).filter(Veiculo.empresa_id == user_empresa_id)
+        vencendo_empresas = vencendo_empresas.filter(DocumentoFiscal.empresa_id == user_empresa_id)
+        
+        total_empresas = total_empresas.filter(Empresa.id == user_empresa_id)
+        total_motoristas = total_motoristas.filter(Motorista.empresa_id == user_empresa_id)
+
     counts = {
-        'vencidos': (db.session.query(func.count(DocumentoMotorista.id)).filter(DocumentoMotorista.data_vencimento < today).scalar() + db.session.query(func.count(DocumentoVeiculo.id)).filter(DocumentoVeiculo.data_vencimento < today).scalar() + db.session.query(func.count(DocumentoFiscal.id)).filter(DocumentoFiscal.data_vencimento < today).scalar()),
-        'vencendo_30d': (db.session.query(func.count(DocumentoMotorista.id)).filter(DocumentoMotorista.data_vencimento.between(today, t_plus_30)).scalar() + db.session.query(func.count(DocumentoVeiculo.id)).filter(DocumentoVeiculo.data_vencimento.between(today, t_plus_30)).scalar() + db.session.query(func.count(DocumentoFiscal.id)).filter(DocumentoFiscal.data_vencimento.between(today, t_plus_30)).scalar()),
-        'empresas': db.session.query(func.count(Empresa.id)).scalar(),
-        'motoristas': db.session.query(func.count(Motorista.id)).scalar()
+        'vencidos': vencidos_motoristas.scalar() + vencidos_veiculos.scalar() + vencidos_empresas.scalar(),
+        'vencendo_30d': vencendo_motoristas.scalar() + vencendo_veiculos.scalar() + vencendo_empresas.scalar(),
+        'empresas': total_empresas.scalar(),
+        'motoristas': total_motoristas.scalar()
     }
-    todas_empresas = Empresa.query.order_by(Empresa.razao_social).all()
+    
+    # A lista de empresas para o filtro dropdown também é restrita
+    empresas_query = Empresa.query.order_by(Empresa.razao_social)
+    if user_empresa_id:
+        empresas_query = empresas_query.filter(Empresa.id == user_empresa_id)
+
+    todas_empresas = empresas_query.all()
     
     return render_template('admin/adm.html', items=final_items, counts=counts, empresas=todas_empresas, hide_expired=hide_expired, request=request)
 

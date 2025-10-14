@@ -2,19 +2,24 @@
 
 {% block title %}Painel Administrativo{% endblock %}
 
-{# ======== BLOCO DE NAVEGAÇÃO ======== #}
+{# ======== BLOCO DE NAVEGAÇÃO COM LÓGICA DE PERMISSÃO ======== #}
 {% block navigation %}
 <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">B64-DOCUMENTAÇÃO</div>
     <ul class="sidebar-nav">
         {% set current_page = request.endpoint %}
+        
         <li class="{{ 'active' if 'admin_dashboard' in current_page else '' }}"><a href="{{ url_for('admin.admin_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
+
+        {# Exibe os links de gerenciamento apenas para o usuário 'master' #}
+        {% if current_user.role == 'master' %}
         <li class="{{ 'active' if 'admin.gerenciar_empresas' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_empresas') }}"><i class="fas fa-building"></i> Gerenciar Empresas</a></li>
         <li class="{{ 'active' if 'admin.gerenciar_motoristas' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_motoristas') }}"><i class="fas fa-user-tie"></i> Gerenciar Motoristas</a></li>
         <li class="{{ 'active' if 'admin.gerenciar_veiculos' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_veiculos') }}"><i class="fas fa-truck"></i> Gerenciar Veículos</a></li>
         <li class="{{ 'active' if 'admin.upload_page' in current_page else '' }}"><a href="{{ url_for('admin.upload_page') }}"><i class="fas fa-file-alt"></i> Painel de Documentos</a></li>
         <li class="{{ 'active' if 'admin.gerenciar_configuracoes' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_configuracoes') }}"><i class="fas fa-cogs"></i> Configurações</a></li>
         <li class="{{ 'active' if 'admin.gerar_convite' in current_page else '' }}"><a href="{{ url_for('admin.gerar_convite') }}"><i class="fas fa-link"></i> Convidar Empresa</a></li>
+        {% endif %}
     </ul>
     <ul class="sidebar-nav">
         <li class="logout-link"><a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
@@ -33,6 +38,9 @@
         <h1 class="h2">
             {% block page_title %}
                 <i class="fas fa-user-shield me-2"></i>Boas-vindas, {{ current_user.nome }}!
+                {% if current_user.role == 'comum' and current_user.empresa %}
+                    <br><small class="text-muted fs-6">Empresa: {{ current_user.empresa.razao_social }}</small>
+                {% endif %}
             {% endblock %}
         </h1>
     </div>
@@ -100,7 +108,7 @@
                                 </div>
                                 <div class="col-md-3">
                                     <label for="empresa_id" class="form-label">Empresa</label>
-                                    <select class="form-select" name="empresa_id">
+                                    <select class="form-select" name="empresa_id" {% if current_user.role != 'master' %}disabled{% endif %}>
                                         <option value="">Todas</option>
                                         {% for empresa in empresas %}
                                          <option value="{{ empresa.id }}" {% if request.args.get('empresa_id')|int == empresa.id %}selected{% endif %}>{{ empresa.razao_social }}</option>
@@ -163,12 +171,5 @@
         </div>
     {% endblock %}
 
-    <footer class="py-4 mt-4 footer-light">
-        <div class="container-fluid px-4">
-            <div class="d-flex align-items-center justify-content-center small">
-                <div class="text-muted">Copyright &copy; Desenvolvido por 64Bits Informática {{ ano }}</div>
-            </div>
-        </div>
-    </footer>
 </div>
 {% endblock %}
