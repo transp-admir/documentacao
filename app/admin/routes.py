@@ -31,6 +31,25 @@ def gerenciar_empresas():
     todas_empresas = Empresa.query.order_by(Empresa.razao_social).all()
     return render_template('admin/gerenciar_empresas.html', empresas=todas_empresas)
 
+
+
+
+@admin_bp.route('/empresa/<int:empresa_id>/toggle_status', methods=['POST'])
+@admin_required
+def toggle_empresa_status(empresa_id):
+    """
+    Ativa ou desativa uma empresa transportadora.
+    """
+    empresa = Empresa.query.get_or_404(empresa_id)
+    empresa.ativo = not empresa.ativo
+    db.session.commit()
+    
+    status = "ativada" if empresa.ativo else "desativada"
+    flash(f'A empresa "{empresa.razao_social}" foi {status} com sucesso.', 'success')
+    
+    return redirect(url_for('admin.gerenciar_empresas'))
+
+
 @admin_bp.route('/motoristas')
 def gerenciar_motoristas():
     # Usar 'options' com 'joinedload' para otimizar a busca, evitando múltiplas queries para buscar a empresa de cada motorista.
@@ -90,6 +109,9 @@ def upload_empresas():
             return redirect(url_for('admin.upload_page'))
 
         novas_empresas = 0
+        cnpjs_ignorados = set()
+        razoes_ignoradas = set()
+
         for _, row in df.iterrows():
             cnpj = row.get('cnpj')
             razao_social = row.get('razao_social')
@@ -100,28 +122,49 @@ def upload_empresas():
             cnpj_limpo = re.sub(r'[^0-9]', '', str(cnpj))
             if len(cnpj_limpo) != 14:
                 continue
+            
+            razao_social_upper = str(razao_social).strip().upper()
+            cnpj_formatado = format_cnpj(cnpj_limpo)
 
-            empresa_existente = Empresa.query.filter_by(cnpj=format_cnpj(cnpj_limpo)).first()
+            # Verifica se o CNPJ ou a Razão Social já existem
+            empresa_por_cnpj = Empresa.query.filter_by(cnpj=cnpj_formatado).first()
+            empresa_por_razao = Empresa.query.filter_by(razao_social=razao_social_upper).first()
 
-            if not empresa_existente:
-                nova_empresa = Empresa(
-                    razao_social=str(razao_social).upper(),
-                    cnpj=cnpj_limpo
-                )
-                db.session.add(nova_empresa)
-                novas_empresas += 1
+            if empresa_por_cnpj:
+                cnpjs_ignorados.add(f"{razao_social_upper} ({cnpj_formatado})")
+                continue
+            
+            if empresa_por_razao:
+                razoes_ignoradas.add(f"{razao_social_upper} ({cnpj_formatado})")
+                continue
+
+            # Se nenhum existir, cria a nova empresa
+            nova_empresa = Empresa(
+                razao_social=razao_social_upper,
+                cnpj=cnpj_limpo
+            )
+            db.session.add(nova_empresa)
+            novas_empresas += 1
         
         if novas_empresas > 0:
             db.session.commit()
             flash(f'{novas_empresas} novas empresas foram cadastradas com sucesso!', 'success')
         else:
-            flash('Nenhuma nova empresa para cadastrar. Os CNPJs enviados já podem existir no sistema.', 'info')
+            flash('Nenhuma nova empresa para cadastrar.', 'info')
+
+        # Informa sobre as duplicatas ignoradas
+        if cnpjs_ignorados:
+            flash(f'<b>CNPJs já existentes (ignorados):</b><br>' + '<br>'.join(sorted(list(cnpjs_ignorados))), 'warning')
+        if razoes_ignoradas:
+            flash(f'<b>Razões Sociais já existentes (ignoradas):</b><br>' + '<br>'.join(sorted(list(razoes_ignoradas))), 'warning')
 
     except Exception as e:
         db.session.rollback()
-        flash(f'Ocorreu um erro ao processar o arquivo de empresas: {e}', 'danger')
+        flash(f'Ocorreu um erro inesperado ao processar o arquivo: {e}', 'danger')
 
     return redirect(url_for('admin.upload_page'))
+
+
 
 @admin_bp.route('/upload/motoristas', methods=['POST'])
 def upload_motoristas():

@@ -1,8 +1,8 @@
-"""Migração inicial
+"""adicao do botao de ativar /desativar tranportador
 
-Revision ID: cfa2066dd3b9
+Revision ID: 63e752e421f5
 Revises: 
-Create Date: 2025-10-11 08:20:38.733007
+Create Date: 2025-10-14 14:52:06.734743
 
 """
 from alembic import op
@@ -10,7 +10,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision = 'cfa2066dd3b9'
+revision = '63e752e421f5'
 down_revision = None
 branch_labels = None
 depends_on = None
@@ -29,9 +29,10 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('razao_social', sa.String(length=120), nullable=False),
     sa.Column('cnpj', sa.String(length=18), nullable=False),
-    sa.Column('status', sa.String(length=50), nullable=False),
+    sa.Column('ativo', sa.Boolean(), nullable=False),
     sa.PrimaryKeyConstraint('id'),
-    sa.UniqueConstraint('cnpj')
+    sa.UniqueConstraint('cnpj'),
+    sa.UniqueConstraint('razao_social')
     )
     op.create_table('documentos_fiscais',
     sa.Column('id', sa.Integer(), nullable=False),
@@ -79,7 +80,7 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('nome_documento', sa.String(length=120), nullable=False),
     sa.Column('data_vencimento', sa.Date(), nullable=False),
-    sa.Column('motorista_id', sa.Integer(), nullable=False),
+    sa.Column('motorista_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['motorista_id'], ['motoristas.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('motorista_id', 'nome_documento', name='_motorista_documento_uc')
@@ -88,7 +89,7 @@ def upgrade():
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('nome_documento', sa.String(length=120), nullable=False),
     sa.Column('data_vencimento', sa.Date(), nullable=False),
-    sa.Column('veiculo_id', sa.Integer(), nullable=False),
+    sa.Column('veiculo_id', sa.Integer(), nullable=True),
     sa.ForeignKeyConstraint(['veiculo_id'], ['veiculos.id'], ),
     sa.PrimaryKeyConstraint('id'),
     sa.UniqueConstraint('veiculo_id', 'nome_documento', name='_veiculo_documento_uc')

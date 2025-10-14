@@ -3,63 +3,73 @@
 {% block title %}Gerenciar Empresas{% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <h1 class="h3 mb-4 text-gray-800">Gerenciar Empresas</h1>
+<div class="card shadow mb-4">
+    <div class="card-header py-3 d-flex justify-content-between align-items-center">
+        <h6 class="m-0 font-weight-bold text-primary">
+            <i class="fas fa-building me-2"></i>Lista de Empresas Cadastradas
+        </h6>
+        <a href="{{ url_for('admin.upload_page') }}" class="btn btn-primary btn-sm">
+            <i class="fas fa-plus"></i> Cadastrar Novas Empresas
+        </a>
+    </div>
+    <div class="card-body">
+        
+        {# Exibe mensagens flash (sucesso, erro) #}
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                        {{ message | safe }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
 
-    {% include '_includes/flash_messages.html' %}
-
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">Lista de Empresas Cadastradas</h6>
-            <a href="#" class="btn btn-primary btn-sm">
-                <i class="fas fa-plus"></i> Adicionar Nova Empresa
-            </a>
-        </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                    <thead>
-                        <tr>
-                            <th>Razão Social</th>
-                            <th>CNPJ</th>
-                            <th>Status</th>
-                            <th class="text-center">Ações</th>
+        <div class="table-responsive">
+            <table class="table table-bordered table-hover" id="dataTable" width="100%" cellspacing="0">
+                <thead>
+                    <tr>
+                        <th>Razão Social</th>
+                        <th>CNPJ</th>
+                        <th class="text-center">Status</th>
+                        <th class="text-center" style="width: 150px;">Ações</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% if empresas %}
+                        {% for empresa in empresas %}
+                        <tr class="{{ 'table-secondary text-muted' if not empresa.ativo else '' }}">
+                            <td>{{ empresa.razao_social }}</td>
+                            <td>{{ empresa.cnpj }}</td>
+                            <td class="text-center">
+                                <span class="badge bg-{{ 'success' if empresa.ativo else 'danger' }}">
+                                    {{ 'Ativa' if empresa.ativo else 'Inativa' }}
+                                </span>
+                            </td>
+                            <td class="text-center">
+                                <form action="{{ url_for('admin.toggle_empresa_status', empresa_id=empresa.id) }}" method="POST" class="d-inline">
+                                    {% if empresa.ativo %}
+                                        <button type="submit" class="btn btn-warning btn-sm" title="Desativar Empresa">
+                                            <i class="fas fa-toggle-off"></i> Desativar
+                                        </button>
+                                    {% else %}
+                                        <button type="submit" class="btn btn-success btn-sm" title="Ativar Empresa">
+                                            <i class="fas fa-toggle-on"></i> Ativar
+                                        </button>
+                                    {% endif %}
+                                </form>
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {% if empresas %}
-                            {% for empresa in empresas %}
-                            <tr>
-                                <td>{{ empresa.razao_social }}</td>
-                                <td>{{ empresa.cnpj }}</td>
-                                <td>
-                                    <span class="badge bg-{{ 'success' if empresa.status == 'ativa' else 'danger' }}">
-                                        {{ empresa.status.title() }}
-                                    </span>
-                                </td>
-                                <td class="text-center">
-                                    <a href="#" class="btn btn-warning btn-sm" title="Editar">
-                                        <i class="fas fa-edit"></i>
-                                    </a>
-                                    <a href="#" class="btn btn-danger btn-sm" title="Excluir" onclick="return confirm('Tem certeza que deseja excluir esta empresa? Esta ação não pode ser desfeita.');">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        {% else %}
-                            <tr>
-                                <td colspan="4" class="text-center">Nenhuma empresa cadastrada.</td>
-                            </tr>
-                        {% endif %}
-                    </tbody>
-                </table>
-            </div>
+                        {% endfor %}
+                    {% else %}
+                        <tr>
+                            <td colspan="4" class="text-center">Nenhuma empresa cadastrada no sistema.</td>
+                        </tr>
+                    {% endif %}
+                </tbody>
+            </table>
         </div>
     </div>
 </div>
-{% endblock %}
-
-{% block scripts %}
-<!-- Você pode adicionar DataTables ou outros scripts aqui no futuro, se desejar -->
 {% endblock %}

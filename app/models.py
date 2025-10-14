@@ -45,10 +45,10 @@ class ConfiguracaoAlerta(db.Model):
 class Empresa(db.Model):
     __tablename__ = 'empresas'
     id = db.Column(db.Integer, primary_key=True)
-    # **CORREÇÃO**: Garante que a Razão Social seja única no banco de dados.
     razao_social = db.Column(db.String(120), unique=True, nullable=False)
     cnpj = db.Column(db.String(18), unique=True, nullable=False)
-    status = db.Column(db.String(50), nullable=False, default='ativa')
+    # MODIFICADO: Alterado de 'status' para 'ativo' para maior clareza.
+    ativo = db.Column(db.Boolean, nullable=False, default=True)
     
     usuarios = relationship('Usuario', backref='empresa', lazy='dynamic')
     motoristas = relationship('Motorista', back_populates='empresa', lazy='dynamic')
@@ -81,6 +81,9 @@ class Usuario(db.Model, UserMixin):
 
     @property
     def is_active(self):
+        # A propriedade is_active do Flask-Login agora também verifica se a empresa do usuário está ativa.
+        if self.empresa:
+            return self.status == 'ativo' and self.empresa.ativo
         return self.status == 'ativo'
 
     @validates('nome', 'login')
