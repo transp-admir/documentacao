@@ -50,6 +50,60 @@ def toggle_empresa_status(empresa_id):
     return redirect(url_for('admin.gerenciar_empresas'))
 
 
+@admin_bp.route('/empresa/<int:empresa_id>/editar', methods=['GET', 'POST'])
+@admin_required
+def editar_empresa(empresa_id):
+    """
+    Carrega a página de edição de uma empresa (GET) e
+    processa a atualização dos seus dados (POST), exibindo também
+    os usuários vinculados.
+    """
+    # A linha abaixo foi corrigida para remover a otimização incompatível.
+    empresa = Empresa.query.get_or_404(empresa_id)
+
+    if request.method == 'POST':
+        nova_razao = request.form.get('razao_social', '').strip().upper()
+        novo_cnpj_bruto = request.form.get('cnpj', '').strip()
+        novo_cnpj_limpo = re.sub(r'[^0-9]', '', novo_cnpj_bruto)
+
+        # Validação de preenchimento e formato
+        if not nova_razao or len(novo_cnpj_limpo) != 14:
+            flash('Erro: A Razão Social é obrigatória e o CNPJ deve conter 14 dígitos.', 'danger')
+            return render_template('admin/editar_empresa.html', empresa=empresa)
+
+        novo_cnpj_formatado = format_cnpj(novo_cnpj_limpo)
+
+        # Validação de duplicidade (ignorando a própria empresa)
+        razao_existente = Empresa.query.filter(
+            Empresa.razao_social == nova_razao,
+            Empresa.id != empresa_id
+        ).first()
+        if razao_existente:
+            flash(f'A Razão Social "{nova_razao}" já está em uso por outra empresa.', 'danger')
+            return render_template('admin/editar_empresa.html', empresa=empresa)
+
+        cnpj_existente = Empresa.query.filter(
+            Empresa.cnpj == novo_cnpj_formatado,
+            Empresa.id != empresa_id
+        ).first()
+        if cnpj_existente:
+            flash(f'O CNPJ "{novo_cnpj_formatado}" já está em uso por outra empresa.', 'danger')
+            return render_template('admin/editar_empresa.html', empresa=empresa)
+
+        # Atualiza os dados e salva no banco
+        empresa.razao_social = nova_razao
+        empresa.cnpj = novo_cnpj_limpo  # Salva o CNPJ sem formatação
+        db.session.commit()
+
+        flash('Dados da empresa atualizados com sucesso!', 'success')
+        # Redireciona para a mesma página para mostrar os dados atualizados
+        return redirect(url_for('admin.editar_empresa', empresa_id=empresa.id))
+
+    # Para requisições GET, apenas renderiza a página com os dados da empresa
+    return render_template('admin/editar_empresa.html', empresa=empresa)
+
+
+
 @admin_bp.route('/motoristas')
 def gerenciar_motoristas():
     # Usar 'options' com 'joinedload' para otimizar a busca, evitando múltiplas queries para buscar a empresa de cada motorista.

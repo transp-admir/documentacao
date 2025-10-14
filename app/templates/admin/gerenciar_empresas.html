@@ -2,19 +2,22 @@
 
 {% block title %}Gerenciar Empresas{% endblock %}
 
-{% block content %}
+{# Define o título que aparecerá no cabeçalho da página #}
+{% block page_title %}
+    <i class="fas fa-building me-2"></i> Gerenciar Empresas
+{% endblock %}
+
+{# Substitui o conteúdo do painel pelo conteúdo específico desta página #}
+{% block page_content %}
 <div class="card shadow mb-4">
     <div class="card-header py-3 d-flex justify-content-between align-items-center">
-        <h6 class="m-0 font-weight-bold text-primary">
-            <i class="fas fa-building me-2"></i>Lista de Empresas Cadastradas
-        </h6>
+        <h6 class="m-0 font-weight-bold text-primary">Lista de Empresas Cadastradas</h6>
         <a href="{{ url_for('admin.upload_page') }}" class="btn btn-primary btn-sm">
             <i class="fas fa-plus"></i> Cadastrar Novas Empresas
         </a>
     </div>
     <div class="card-body">
         
-        {# Exibe mensagens flash (sucesso, erro) #}
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -33,7 +36,7 @@
                         <th>Razão Social</th>
                         <th>CNPJ</th>
                         <th class="text-center">Status</th>
-                        <th class="text-center" style="width: 150px;">Ações</th>
+                        <th class="text-center" style="width: 250px;">Ações</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -48,6 +51,7 @@
                                 </span>
                             </td>
                             <td class="text-center">
+                                <!-- Botão Ativar/Desativar -->
                                 <form action="{{ url_for('admin.toggle_empresa_status', empresa_id=empresa.id) }}" method="POST" class="d-inline">
                                     {% if empresa.ativo %}
                                         <button type="submit" class="btn btn-warning btn-sm" title="Desativar Empresa">
@@ -59,6 +63,11 @@
                                         </button>
                                     {% endif %}
                                 </form>
+
+                                <!-- Botão Editar -->
+                                <a href="{{ url_for('admin.editar_empresa', empresa_id=empresa.id) }}" class="btn btn-info btn-sm d-inline" title="Editar Empresa e Ver Usuários">
+                                    <i class="fas fa-edit"></i> Editar
+                                </a>
                             </td>
                         </tr>
                         {% endfor %}

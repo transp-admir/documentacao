@@ -1,44 +1,116 @@
 {% extends "admin/adm.html" %}
 
-{% block title %}Editar Empresa{% endblock %}
+{% block title %}Editar Empresa: {{ empresa.razao_social }}{% endblock %}
 
+{# Define o título que aparecerá no cabeçalho da página #}
+{% block page_title %}
+    <i class="fas fa-edit me-2"></i>Editando Empresa: <strong>{{ empresa.razao_social }}</strong>
+{% endblock %}
+
+{# Substitui o conteúdo do painel pelo conteúdo específico desta página #}
 {% block page_content %}
-<div class="card shadow mb-4 mx-auto" style="max-width: 600px;">
-    <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">
-            <i class="fas fa-edit me-2"></i>Editar Dados da Empresa
-        </h6>
-    </div>
-    <div class="card-body">
-        {# O formulário envia os dados para a própria URL (a rota de edição) via POST #}
-        <form method="POST">
-            
-            <!-- Campo Razão Social -->
-            <div class="mb-3">
-                <label for="razao_social" class="form-label">Razão Social</label>
-                <input type="text" class="form-control" id="razao_social" name="razao_social" value="{{ empresa.razao_social }}" required>
+<div class="row">
+    <!-- Card de Edição da Empresa -->
+    <div class="col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-pencil-alt me-2"></i>Dados Cadastrais
+                </h6>
             </div>
-            
-            <!-- Campo CNPJ -->
-            <div class="mb-3">
-                <label for="cnpj" class="form-label">CNPJ</label>
-                <input type="text" class="form-control" id="cnpj" name="cnpj" value="{{ empresa.cnpj }}" required maxlength="18">
-            </div>
-            
-            <hr>
+            <div class="card-body">
+                {% with messages = get_flashed_messages(with_categories=true) %}
+                    {% if messages %}
+                        {% for category, message in messages %}
+                            <div class="alert alert-{{ category }} alert-dismissible fade show" role="alert">
+                                {{ message | safe }}
+                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                            </div>
+                        {% endfor %}
+                    {% endif %}
+                {% endwith %}
 
-            <!-- Botões de Ação -->
-            <div class="d-flex justify-content-end">
-                <a href="{{ url_for('admin.gerenciar_empresas') }}" class="btn btn-secondary me-2">
-                    <i class="fas fa-times me-1"></i>
-                    Cancelar
-                </a>
-                <button type="submit" class="btn btn-primary">
-                    <i class="fas fa-save me-1"></i>
-                    Salvar Alterações
-                </button>
+                <form action="{{ url_for('admin.editar_empresa', empresa_id=empresa.id) }}" method="POST">
+                    <div class="mb-3">
+                        <label for="razao_social" class="form-label">Razão Social</label>
+                        <input type="text" class="form-control" id="razao_social" name="razao_social" value="{{ request.form.get('razao_social', empresa.razao_social) }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="cnpj" class="form-label">CNPJ</label>
+                        <input type="text" class="form-control" id="cnpj" name="cnpj" value="{{ request.form.get('cnpj', empresa.cnpj) }}" required>
+                    </div>
+                    
+                    <hr>
+                    
+                    <div class="d-flex justify-content-between">
+                        <a href="{{ url_for('admin.gerenciar_empresas') }}" class="btn btn-secondary">
+                            <i class="fas fa-arrow-left me-1"></i> Voltar
+                        </a>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i> Salvar Alterações
+                        </button>
+                    </div>
+                </form>
             </div>
-        </form>
+        </div>
+    </div>
+
+    <!-- Card de Usuários da Empresa -->
+    <div class="col-lg-6">
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-primary">
+                    <i class="fas fa-users me-2"></i>Usuários Vinculados
+                </h6>
+                {# Futuro botão para adicionar usuário #}
+            </div>
+            <div class="card-body">
+                {% if empresa.usuarios.all() %}
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover" width="100%" cellspacing="0">
+                            <thead>
+                                <tr>
+                                    <th>Nome do Usuário</th>
+                                    <th>Login</th>
+                                    <th class="text-center">Status</th>
+                                    <th class="text-center">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for usuario in empresa.usuarios %}
+                                <tr class="{{ 'table-secondary text-muted' if usuario.status != 'ativo' else '' }}">
+                                    <td>{{ usuario.nome }}</td>
+                                    <td>{{ usuario.login }}</td>
+                                    <td class="text-center">
+                                        <span class="badge bg-{{ 'success' if usuario.status == 'ativo' else 'danger' }}">
+                                            {{ usuario.status.title() }}
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        <form action="#" method="POST" class="d-inline"> {# ROTA SERÁ ADICIONADA #}
+                                            {% if usuario.status == 'ativo' %}
+                                                <button type="submit" class="btn btn-warning btn-sm" title="Desativar Usuário">
+                                                    <i class="fas fa-toggle-off"></i>
+                                                </button>
+                                            {% else %}
+                                                <button type="submit" class="btn btn-success btn-sm" title="Ativar Usuário">
+                                                    <i class="fas fa-toggle-on"></i>
+                                                </button>
+                                            {% endif %}
+                                        </form>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info text-center">
+                        Nenhum usuário vinculado a esta empresa ainda.
+                    </div>
+                {% endif %}
+            </div>
+        </div>
     </div>
 </div>
 {% endblock %}
