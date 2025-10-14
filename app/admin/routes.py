@@ -14,7 +14,7 @@ import re
 import pandas as pd
 from datetime import datetime
 from .. import db
-from ..models import (Empresa, DocumentoFiscal, Motorista, Veiculo, DocumentoMotorista, 
+from ..models import (Empresa, DocumentoFiscal, Motorista, Usuario, Veiculo, DocumentoMotorista, 
 DocumentoVeiculo, ConfiguracaoAlerta, format_cnpj, format_cpf)
 
 # Aplica o decorador a TODAS as rotas deste blueprint
@@ -101,6 +101,36 @@ def editar_empresa(empresa_id):
 
     # Para requisições GET, apenas renderiza a página com os dados da empresa
     return render_template('admin/editar_empresa.html', empresa=empresa)
+
+
+@admin_bp.route('/usuario/<int:usuario_id>/toggle_status', methods=['POST'])
+@admin_required
+def toggle_usuario_status(usuario_id):
+    """
+    Ativa ou desativa o status de um usuário.
+    """
+    # Busca o usuário no banco de dados ou retorna erro 404 se não encontrar.
+    usuario = Usuario.query.get_or_404(usuario_id)
+    
+    # Guarda o ID da empresa para poder redirecionar de volta para a página correta.
+    empresa_id_redirect = usuario.empresa_id
+
+    # Lógica para alternar o status do usuário.
+    if usuario.status == 'ativo':
+        usuario.status = 'inativo'
+        status_texto = "desativado"
+    else:
+        usuario.status = 'ativo'
+        status_texto = "ativado"
+
+    # Salva a alteração no banco de dados.
+    db.session.commit()
+    
+    # Exibe uma mensagem de sucesso para o administrador.
+    flash(f'O usuário "{usuario.nome}" foi {status_texto} com sucesso.', 'success')
+    
+    # Redireciona o administrador de volta para a página de edição da empresa.
+    return redirect(url_for('admin.editar_empresa', empresa_id=empresa_id_redirect))
 
 
 
