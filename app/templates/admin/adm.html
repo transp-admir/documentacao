@@ -1,6 +1,8 @@
 {% extends "base.html" %}
 
-{# ======== BLOCO DE NAVEGAÇÃO ESPECÍFICO DO ADMIN ======== #}
+{% block title %}Painel {{ 'do Transportador' if is_transportador else 'Administrativo' }}{% endblock %}
+
+{# ======== BLOCO DE NAVEGAÇÃO DINÂMICO ======== #}
 {% block navigation %}
 <nav class="sidebar" id="sidebar">
     <div class="sidebar-header">
@@ -8,13 +10,20 @@
     </div>
     <ul class="sidebar-nav">
         {% set current_page = request.endpoint %}
-        <li class="{{ 'active' if 'admin.admin_dashboard' in current_page else '' }}"><a href="{{ url_for('admin.admin_dashboard') }}"><i class="fas fa-home"></i> Dashboard</a></li>
+        {# Link de Dashboard dinâmico #}
+        <li class="{{ 'active' if 'admin_dashboard' in current_page or 'main.index' in current_page else '' }}">
+            <a href="{{ url_for('admin.admin_dashboard') if not is_transportador else url_for('main.index') }}"><i class="fas fa-home"></i> Dashboard</a>
+        </li>
+
+        {# Menus exclusivos do Admin #}
+        {% if not is_transportador %}
         <li class="{{ 'active' if 'admin.gerenciar_empresas' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_empresas') }}"><i class="fas fa-building"></i> Gerenciar Empresas</a></li>
         <li class="{{ 'active' if 'admin.gerenciar_motoristas' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_motoristas') }}"><i class="fas fa-user-tie"></i> Gerenciar Motoristas</a></li>
         <li class="{{ 'active' if 'admin.gerenciar_veiculos' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_veiculos') }}"><i class="fas fa-truck"></i> Gerenciar Veículos</a></li>
         <li class="{{ 'active' if 'admin.upload_page' in current_page else '' }}"><a href="{{ url_for('admin.upload_page') }}"><i class="fas fa-file-alt"></i> Painel de Documentos</a></li>
         <li class="{{ 'active' if 'admin.gerenciar_configuracoes' in current_page else '' }}"><a href="{{ url_for('admin.gerenciar_configuracoes') }}"><i class="fas fa-cogs"></i> Configurações</a></li>
         <li class="{{ 'active' if 'admin.gerar_convite' in current_page else '' }}"><a href="{{ url_for('admin.gerar_convite') }}"><i class="fas fa-link"></i> Convidar Empresa</a></li>
+        {% endif %}
     </ul>
     <ul class="sidebar-nav">
         <li class="logout-link"><a href="{{ url_for('auth.logout') }}"><i class="fas fa-sign-out-alt"></i> Sair</a></li>
@@ -22,7 +31,7 @@
 </nav>
 
 <div class="mobile-header">
-    <span class="mobile-title">SGV Admin</span>
+    <span class="mobile-title">SGV</span>
     <button class="menu-toggle" onclick="toggleSidebar()"><i class="fas fa-bars"></i></button>
 </div>
 {% endblock %}
@@ -31,9 +40,19 @@
 {# ======== BLOCO DE CONTEÚDO DA PÁGINA ======== #}
 {% block content %}
 <div class="container-fluid">
-    {% block admin_content %}
-
-    {# Cards de Resumo #}
+    
+    {# MENSAGEM DE BOAS VINDAS #}
+    <div class="pt-3 pb-2 mb-3 border-bottom">
+        <h1 class="h2">
+            {% if is_transportador %}
+                <i class="fas fa-building me-2"></i>Boas-vindas, {{ current_user.empresa.razao_social }}!
+            {% else %}
+                <i class="fas fa-user-shield me-2"></i>Boas-vindas, {{ current_user.nome }}!
+            {% endif %}
+        </h1>
+    </div>
+    
+    {# Cards de Resumo dinâmicos #}
     <div class="row mb-4">
         <div class="col-lg-3 col-md-6 mb-3">
             <div class="card text-white bg-danger h-100">
@@ -51,6 +70,9 @@
                 </div>
             </div>
         </div>
+        
+        {# Cards específicos para cada perfil #}
+        {% if not is_transportador %}
         <div class="col-lg-3 col-md-6 mb-3">
             <div class="card text-white bg-info h-100">
                 <div class="card-body">
@@ -59,17 +81,19 @@
                 </div>
             </div>
         </div>
+        {% endif %}
+
         <div class="col-lg-3 col-md-6 mb-3">
             <div class="card text-white bg-secondary h-100">
                 <div class="card-body">
-                    <h5 class="card-title"><i class="fas fa-user-tie"></i> Motoristas Ativos</h5>
+                    <h5 class="card-title"><i class="fas fa-user-tie"></i> {{ 'Seus Motoristas' if is_transportador else 'Motoristas Ativos' }}</h5>
                     <p class="card-text fs-4">{{ counts.motoristas or 0 }}</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Painel de Filtros -->
+    <!-- Painel de Filtros dinâmico -->
     <div class="accordion mb-4" id="accordionFilters">
         <div class="accordion-item">
             <h2 class="accordion-header" id="headingFilters">
@@ -79,7 +103,7 @@
             </h2>
             <div id="collapseFilters" class="accordion-collapse collapse" aria-labelledby="headingFilters" data-bs-parent="#accordionFilters">
                 <div class="accordion-body">
-                    <form method="GET" action="{{ url_for('admin.admin_dashboard') }}">
+                    <form method="GET" action="{{ url_for(request.url_rule.endpoint) }}">
                         <div class="row g-3">
                             <div class="col-md-3">
                                 <label for="entidade" class="form-label">Tipo de Entidade</label>
@@ -90,6 +114,8 @@
                                     <option value="empresa" {% if request.args.get('entidade') == 'empresa' %}selected{% endif %}>Empresa</option>
                                 </select>
                             </div>
+                            
+                            {% if not is_transportador %}
                             <div class="col-md-3">
                                 <label for="empresa_id" class="form-label">Empresa</label>
                                 <select class="form-select" name="empresa_id">
@@ -99,6 +125,8 @@
                                     {% endfor %}
                                 </select>
                             </div>
+                            {% endif %}
+
                             <div class="col-md-3">
                                 <label for="status" class="form-label">Status do Vencimento</label>
                                 <select class="form-select" name="status" {% if hide_expired %}disabled{% endif %}>
@@ -116,17 +144,17 @@
                         </div>
                         <div class="mt-3 d-flex align-items-center gap-2">
                             <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Filtrar</button>
-                            <a href="{{ url_for('admin.admin_dashboard') }}" class="btn btn-secondary"><i class="fas fa-eraser"></i> Limpar</a>
+                            <a href="{{ url_for(request.url_rule.endpoint) }}" class="btn btn-secondary"><i class="fas fa-eraser"></i> Limpar</a>
                             
                             {% set args = request.args.to_dict() %}
                             {% if hide_expired %}
-                                {% set _ = args.update({'hide_expired': 'false'}) %}
-                                <a href="{{ url_for('admin.admin_dashboard', **args) }}" class="btn btn-outline-primary">
+                                {% set _ = args.pop('hide_expired', None) %}
+                                <a href="{{ url_for(request.url_rule.endpoint, **args) }}" class="btn btn-outline-primary">
                                     <i class="fas fa-eye me-1"></i> Mostrar Vencidos
                                 </a>
                             {% else %}
                                 {% set _ = args.update({'hide_expired': 'true'}) %}
-                                <a href="{{ url_for('admin.admin_dashboard', **args) }}" class="btn btn-primary">
+                                <a href="{{ url_for(request.url_rule.endpoint, **args) }}" class="btn btn-primary">
                                     <i class="fas fa-eye-slash me-1"></i> Ocultar Vencidos
                                 </a>
                             {% endif %}
@@ -137,7 +165,7 @@
         </div>
     </div>
 
-    <!-- Tabela de Vencimentos -->
+    <!-- Tabela de Vencimentos dinâmica -->
     <div class="card">
         <div class="card-header">
             <h4 class="mb-0"><i class="fas fa-bell"></i> Painel de Vencimentos</h4>
@@ -150,7 +178,7 @@
                             <th>Tipo</th>
                             <th>Nome / Placa</th>
                             <th>Documento</th>
-                            <th>Empresa</th>
+                            {% if not is_transportador %}<th>Empresa</th>{% endif %}
                             <th>Vencimento</th>
                             <th>Status</th>
                             <th>Ações</th>
@@ -173,10 +201,9 @@
                                 </td>
                                 <td>{{ item.name }}</td>
                                 <td>{{ item.document_type }}</td>
-                                <td>{{ item.empresa_name or 'N/A' }}</td>
+                                {% if not is_transportador %}<td>{{ item.empresa_name or 'N/A' }}</td>{% endif %}
                                 <td>{{ item.due_date.strftime('%d/%m/%Y') }}</td>
                                 <td>
-                                    {# LÓGICA DE STATUS FINAL E CORRIGIDA #}
                                     {% if item.status == 'vencido' %}
                                         <span class="badge bg-danger">Vencido há {{ -item.days_left }} dias</span>
                                     {% elif item.days_left == 0 %}
@@ -187,14 +214,16 @@
                                         <span class="badge bg-success">OK</span>
                                     {% endif %}
                                 </td>
+                                <!--
                                 <td>
                                     <a href="{{ item.url }}" class="btn btn-sm btn-outline-primary">Ver Detalhes</a>
                                 </td>
+                                -->
                             </tr>
                             {% endfor %}
                         {% else %}
                             <tr>
-                                <td colspan="7" class="text-center py-4">
+                                <td colspan="{{ 7 if not is_transportador else 6 }}" class="text-center py-4">
                                     Nenhum item encontrado com os filtros atuais.
                                 </td>
                             </tr>
@@ -204,6 +233,15 @@
             </div>
         </div>
     </div>
-    {% endblock admin_content %}
+    
+    {# RODAPÉ #}
+    <footer class="py-4 mt-4 footer-light">
+        <div class="container-fluid px-4">
+            <div class="d-flex align-items-center justify-content-center small">
+                <div class="text-muted">Copyright &copy; Desenvolvido por 64Bits Informática {{ ano }}</div>
+            </div>
+        </div>
+    </footer>
+
 </div>
 {% endblock %}
