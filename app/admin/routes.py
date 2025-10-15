@@ -1,4 +1,4 @@
-from flask import render_template, redirect, url_for, flash, current_app, request
+from flask import render_template, redirect, url_for, flash, current_app, request, Response
 from . import admin_bp
 from ..auth.decorators import admin_required
 from itsdangerous import URLSafeTimedSerializer
@@ -9,6 +9,8 @@ from sqlalchemy import distinct
 from sqlalchemy import or_, func, literal_column
 import re
 from flask_login import current_user
+import io
+
 
 
 
@@ -151,6 +153,9 @@ def gerenciar_motoristas():
     return render_template('admin/gerenciar_motoristas.html', motoristas=todos_motoristas)
 
 
+
+
+
 @admin_bp.route('/veiculos')
 def gerenciar_veiculos():
     query = Veiculo.query.options(db.joinedload(Veiculo.empresa)).order_by(Veiculo.placa)
@@ -275,79 +280,96 @@ def upload_motoristas():
     if arquivo.filename == '':
         flash('Nenhum arquivo foi selecionado.', 'danger')
         return redirect(url_for('admin.upload_page'))
+    
+    if Empresa.query.count() == 0:
+        flash('<b>Ação Necessária:</b> Nenhuma empresa está cadastrada. Por favor, cadastre ao menos uma empresa no <b>PASSO 1</b> antes de importar motoristas.', 'warning')
+        return redirect(url_for('admin.upload_page'))
 
     extensao = arquivo.filename.rsplit('.', 1)[1].lower()
     if extensao not in ['csv', 'xlsx', 'xls']:
-        flash('Formato de arquivo inválido.', 'danger')
+        flash('Formato de arquivo inválido. Use .csv, .xls ou .xlsx.', 'danger')
         return redirect(url_for('admin.upload_page'))
 
     try:
         if extensao == 'csv':
-            df = pd.read_csv(arquivo.stream, dtype=str, encoding='latin-1')
+            try:
+                df = pd.read_csv(arquivo.stream, dtype=str)
+            except UnicodeDecodeError:
+                arquivo.stream.seek(0)
+                df = pd.read_csv(arquivo.stream, dtype=str, encoding='latin-1')
         else:
             df = pd.read_excel(arquivo.stream, dtype=str)
 
         df.columns = [str(col).strip().lower() for col in df.columns]
         colunas_esperadas = ['nome', 'cpf', 'cnpj_transportador']
-
+        
         if not all(col in df.columns for col in colunas_esperadas):
-            flash(f'O arquivo para motoristas deve conter as colunas: {", ".join(colunas_esperadas)}', 'danger')
+            flash(f'O arquivo para motoristas deve conter as colunas obrigatórias: {", ".join(colunas_esperadas)}', 'danger')
             return redirect(url_for('admin.upload_page'))
 
-        novos_motoristas = 0
+        cadastrados_count = 0
+        cpfs_ja_existentes_count = 0
         empresas_nao_encontradas = set()
+        dados_invalidos = []
 
-        for _, row in df.iterrows():
-            nome = row.get('nome')
-            cpf = row.get('cpf')
-            cnpj_transportador = row.get('cnpj_transportador')
-            cnh = row.get('cnh')
-            operacao = row.get('operacao')
-
-            if pd.isna(nome) or pd.isna(cpf) or pd.isna(cnpj_transportador):
+        for index, row in df.iterrows():
+            linha_num = index + 2
+            nome, cpf, cnpj = row.get('nome'), row.get('cpf'), row.get('cnpj_transportador')
+            
+            if pd.isna(nome) or pd.isna(cpf) or pd.isna(cnpj):
+                dados_invalidos.append(f"Linha {linha_num}: Faltando nome, cpf ou cnpj.")
                 continue
 
-            cnpj_limpo = re.sub(r'[^0-9]', '', str(cnpj_transportador))
+            cnpj_limpo = re.sub(r'[^0-9]', '', str(cnpj))
             if len(cnpj_limpo) != 14:
+                dados_invalidos.append(f"Linha {linha_num}: CNPJ '{cnpj}' inválido.")
                 continue
 
             empresa = Empresa.query.filter_by(cnpj=format_cnpj(cnpj_limpo)).first()
-
             if not empresa:
-                empresas_nao_encontradas.add(cnpj_transportador)
+                empresas_nao_encontradas.add(format_cnpj(cnpj_limpo))
                 continue
-
+            
             cpf_limpo = re.sub(r'[^0-9]', '', str(cpf))
             if len(cpf_limpo) != 11:
+                dados_invalidos.append(f"Linha {linha_num}: CPF '{cpf}' inválido.")
                 continue
 
-            motorista_existente = Motorista.query.filter_by(cpf=format_cpf(cpf_limpo)).first()
+            if Motorista.query.filter_by(cpf=format_cpf(cpf_limpo)).first():
+                cpfs_ja_existentes_count += 1
+                continue
 
-            if not motorista_existente:
-                novo_motorista = Motorista(
-                    nome=str(nome).upper(),
-                    cpf=cpf_limpo,
-                    cnh=str(cnh) if pd.notna(cnh) else None,
-                    operacao=str(operacao).upper() if pd.notna(operacao) else None,
-                    empresa_id=empresa.id
-                )
-                db.session.add(novo_motorista)
-                novos_motoristas += 1
+            novo_motorista = Motorista(
+                nome=str(nome).upper(), cpf=cpf_limpo,
+                cnh=str(row.get('cnh')) if pd.notna(row.get('cnh')) else None,
+                operacao=str(row.get('operacao')).upper() if pd.notna(row.get('operacao')) else None,
+                empresa_id=empresa.id
+            )
+            db.session.add(novo_motorista)
+            cadastrados_count += 1
         
-        if novos_motoristas > 0:
+        if cadastrados_count > 0:
             db.session.commit()
-            flash(f'{novos_motoristas} novos motoristas foram cadastrados com sucesso!', 'success')
-        else:
-            flash('Nenhum novo motorista para cadastrar. Os CPFs enviados já podem existir no sistema.', 'info')
+            flash(f'<b><i class="fas fa-check-circle"></i> Sucesso: {cadastrados_count} novo(s) motorista(s) foram cadastrado(s).</b>', 'success')
+        
+        if cpfs_ja_existentes_count > 0:
+            flash(f'<b><i class="fas fa-info-circle"></i> Aviso: {cpfs_ja_existentes_count} motorista(s) foram ignorado(s) porque o CPF já consta no sistema.</b>', 'info')
 
         if empresas_nao_encontradas:
-            flash(f'Atenção: As seguintes empresas (CNPJ) não foram encontradas: {", ".join(empresas_nao_encontradas)}', 'warning')
+            flash(f'<b><i class="fas fa-exclamation-triangle"></i> Erro Crítico: A(s) empresa(s) com o(s) seguinte(s) CNPJ(s) não foi(ram) encontrada(s):</b><br>' + '<br>'.join(sorted(list(empresas_nao_encontradas))), 'danger')
+
+        if dados_invalidos:
+            flash(f'<b><i class="fas fa-exclamation-triangle"></i> {len(dados_invalidos)} linha(s) com dados inválidos foram ignoradas:</b><br>' + '<br>'.join(dados_invalidos), 'danger')
+
+        if not any([cadastrados_count, cpfs_ja_existentes_count, empresas_nao_encontradas, dados_invalidos]):
+             flash('Arquivo processado, mas nenhuma alteração foi necessária. Verifique se os dados do arquivo já existem no sistema.', 'info')
 
     except Exception as e:
         db.session.rollback()
-        flash(f'Ocorreu um erro ao processar o arquivo de motoristas: {e}', 'danger')
+        flash(f'Ocorreu um erro inesperado ao processar o arquivo: {e}', 'danger')
 
     return redirect(url_for('admin.upload_page'))
+
 
 @admin_bp.route('/upload/veiculos', methods=['POST'])
 def upload_veiculos():
@@ -360,14 +382,22 @@ def upload_veiculos():
         flash('Nenhum arquivo foi selecionado.', 'danger')
         return redirect(url_for('admin.upload_page'))
 
+    if Empresa.query.count() == 0:
+        flash('<b>Ação Necessária:</b> Nenhuma empresa está cadastrada. Por favor, cadastre ao menos uma empresa no <b>PASSO 1</b> antes de importar veículos.', 'warning')
+        return redirect(url_for('admin.upload_page'))
+
     extensao = arquivo.filename.rsplit('.', 1)[1].lower()
     if extensao not in ['csv', 'xlsx', 'xls']:
-        flash('Formato de arquivo inválido.', 'danger')
+        flash('Formato de arquivo inválido. Use .csv, .xls ou .xlsx.', 'danger')
         return redirect(url_for('admin.upload_page'))
 
     try:
         if extensao == 'csv':
-            df = pd.read_csv(arquivo.stream, dtype=str, encoding='latin-1')
+            try:
+                df = pd.read_csv(arquivo.stream, dtype=str)
+            except UnicodeDecodeError:
+                arquivo.stream.seek(0)
+                df = pd.read_csv(arquivo.stream, dtype=str, encoding='latin-1')
         else:
             df = pd.read_excel(arquivo.stream, dtype=str)
 
@@ -375,56 +405,71 @@ def upload_veiculos():
         colunas_esperadas = ['placa', 'cnpj_transportador']
 
         if not all(col in df.columns for col in colunas_esperadas):
-            flash(f'O arquivo para veículos deve conter as colunas: {", ".join(colunas_esperadas)}', 'danger')
+            flash(f'O arquivo para veículos deve conter as colunas obrigatórias: {", ".join(colunas_esperadas)}', 'danger')
             return redirect(url_for('admin.upload_page'))
 
-        novos_veiculos = 0
+        cadastrados_count = 0
+        placas_ja_existentes_count = 0
         empresas_nao_encontradas = set()
+        dados_invalidos = []
 
-        for _, row in df.iterrows():
-            placa = row.get('placa')
-            cnpj_transportador = row.get('cnpj_transportador')
-            operacao = row.get('operacao')
+        for index, row in df.iterrows():
+            linha_num = index + 2
+            placa, cnpj = row.get('placa'), row.get('cnpj_transportador')
 
-            if pd.isna(placa) or pd.isna(cnpj_transportador):
+            if pd.isna(placa) or pd.isna(cnpj):
+                dados_invalidos.append(f"Linha {linha_num}: Faltando placa ou cnpj.")
                 continue
 
-            cnpj_limpo = re.sub(r'[^0-9]', '', str(cnpj_transportador))
+            cnpj_limpo = re.sub(r'[^0-9]', '', str(cnpj))
             if len(cnpj_limpo) != 14:
-                continue
-
-            empresa = Empresa.query.filter_by(cnpj=format_cnpj(cnpj_limpo)).first()
-
-            if not empresa:
-                empresas_nao_encontradas.add(cnpj_transportador)
+                dados_invalidos.append(f"Linha {linha_num}: CNPJ '{cnpj}' inválido.")
                 continue
             
-            placa_upper = str(placa).upper()
-            veiculo_existente = Veiculo.query.filter_by(placa=placa_upper).first()
+            empresa = Empresa.query.filter_by(cnpj=format_cnpj(cnpj_limpo)).first()
+            if not empresa:
+                empresas_nao_encontradas.add(format_cnpj(cnpj_limpo))
+                continue
+            
+            placa_upper = str(placa).strip().upper()
+            if not placa_upper:
+                dados_invalidos.append(f"Linha {linha_num}: Placa não pode estar em branco.")
+                continue
 
-            if not veiculo_existente:
-                novo_veiculo = Veiculo(
-                    placa=placa_upper,
-                    operacao=str(operacao).upper() if pd.notna(operacao) else None,
-                    empresa_id=empresa.id
-                )
-                db.session.add(novo_veiculo)
-                novos_veiculos += 1
-        
-        if novos_veiculos > 0:
+            if Veiculo.query.filter_by(placa=placa_upper).first():
+                placas_ja_existentes_count += 1
+                continue
+
+            novo_veiculo = Veiculo(
+                placa=placa_upper,
+                operacao=str(row.get('operacao')).upper() if pd.notna(row.get('operacao')) else None,
+                empresa_id=empresa.id
+            )
+            db.session.add(novo_veiculo)
+            cadastrados_count += 1
+
+        if cadastrados_count > 0:
             db.session.commit()
-            flash(f'{novos_veiculos} novos veículos foram cadastrados com sucesso!', 'success')
-        else:
-            flash('Nenhum novo veículo para cadastrar. As placas enviadas já podem existir no sistema.', 'info')
+            flash(f'<b><i class="fas fa-check-circle"></i> Sucesso: {cadastrados_count} novo(s) veículo(s) foram cadastrado(s).</b>', 'success')
+        
+        if placas_ja_existentes_count > 0:
+            flash(f'<b><i class="fas fa-info-circle"></i> Aviso: {placas_ja_existentes_count} veículo(s) foram ignorado(s) porque a placa já consta no sistema.</b>', 'info')
 
         if empresas_nao_encontradas:
-            flash(f'Atenção: As seguintes empresas (CNPJ) não foram encontradas: {", ".join(empresas_nao_encontradas)}', 'warning')
+            flash(f'<b><i class="fas fa-exclamation-triangle"></i> Erro Crítico: A(s) empresa(s) com o(s) seguinte(s) CNPJ(s) não foi(ram) encontrada(s):</b><br>' + '<br>'.join(sorted(list(empresas_nao_encontradas))), 'danger')
+
+        if dados_invalidos:
+            flash(f'<b><i class="fas fa-exclamation-triangle"></i> {len(dados_invalidos)} linha(s) com dados inválidos foram ignoradas:</b><br>' + '<br>'.join(dados_invalidos), 'danger')
+
+        if not any([cadastrados_count, placas_ja_existentes_count, empresas_nao_encontradas, dados_invalidos]):
+             flash('Arquivo processado, mas nenhuma alteração foi necessária. Verifique se os dados do arquivo já existem no sistema.', 'info')
 
     except Exception as e:
         db.session.rollback()
-        flash(f'Ocorreu um erro ao processar o arquivo de veículos: {e}', 'danger')
+        flash(f'Ocorreu um erro inesperado ao processar o arquivo: {e}', 'danger')
 
     return redirect(url_for('admin.upload_page'))
+
 
 
 # --- BLOCO 2: ROTAS DE VALIDADE DE DOCUMENTOS (COM CORREÇÃO DE ENCODING) ---
@@ -860,6 +905,142 @@ def admin_dashboard():
     todas_empresas = empresas_query.all()
     
     return render_template('admin/adm.html', items=final_items, counts=counts, empresas=todas_empresas, hide_expired=hide_expired, request=request)
+
+
+
+@admin_bp.route('/export/dashboard/csv')
+@admin_required
+def export_dashboard_csv():
+    """
+    Exporta os dados do painel de vencimentos para um arquivo CSV,
+    respeitando os filtros aplicados na URL.
+    """
+    # --- 1. Replicar a Lógica de Consulta do Dashboard ---
+    today = date.today()
+    entidade_filter = request.args.get('entidade', '')
+    empresa_id_filter = request.args.get('empresa_id', '')
+    status_filter = request.args.get('status', '')
+    search_query = request.args.get('q', '').strip()
+    hide_expired = request.args.get('hide_expired', 'false').lower() == 'true'
+
+    user_empresa_id = None
+    if current_user.role != 'master':
+        user_empresa_id = current_user.empresa_id
+        empresa_id_filter = user_empresa_id 
+
+    configs = ConfiguracaoAlerta.query.all()
+    configs_dict = {config.nome_documento.upper(): config.prazo_alerta_dias for config in configs}
+    default_prazo = 30
+    known_generic_types = ['CVVTR', 'CIV', 'CIPP', 'CRLV', 'ANTT', 'CNH', 'ASO', 'ALVARÁ', 'LICENCIAMENTO']
+
+    q_motoristas = db.session.query(literal_column("'Motorista'").label('type'), Motorista.nome.label('name'), DocumentoMotorista.nome_documento.label('document_type'), Empresa.razao_social.label('empresa_name'), DocumentoMotorista.data_vencimento.label('due_date'), Motorista.id.label('owner_id'), Empresa.id.label('empresa_id')).join(Motorista, DocumentoMotorista.motorista_id == Motorista.id).join(Empresa, Motorista.empresa_id == Empresa.id)
+    q_veiculos = db.session.query(literal_column("'Veículo'").label('type'), Veiculo.placa.label('name'), DocumentoVeiculo.nome_documento.label('document_type'), Empresa.razao_social.label('empresa_name'), DocumentoVeiculo.data_vencimento.label('due_date'), Veiculo.id.label('owner_id'), Empresa.id.label('empresa_id')).join(Veiculo, DocumentoVeiculo.veiculo_id == Veiculo.id).join(Empresa, Veiculo.empresa_id == Empresa.id)
+    q_empresas = db.session.query(literal_column("'Empresa'").label('type'), Empresa.razao_social.label('name'), DocumentoFiscal.nome_documento.label('document_type'), Empresa.razao_social.label('empresa_name'), DocumentoFiscal.data_vencimento.label('due_date'), Empresa.id.label('owner_id'), Empresa.id.label('empresa_id')).join(Empresa, DocumentoFiscal.empresa_id == Empresa.id)
+
+    if user_empresa_id:
+        q_motoristas = q_motoristas.filter(Motorista.empresa_id == user_empresa_id)
+        q_veiculos = q_veiculos.filter(Veiculo.empresa_id == user_empresa_id)
+        q_empresas = q_empresas.filter(DocumentoFiscal.empresa_id == user_empresa_id)
+
+    queries = []
+    if not entidade_filter or entidade_filter == 'motorista': queries.append(q_motoristas)
+    if not entidade_filter or entidade_filter == 'veiculo': queries.append(q_veiculos)
+    if not entidade_filter or entidade_filter == 'empresa': queries.append(q_empresas)
+
+    final_items = []
+    if queries:
+        unioned_query = queries[0].union_all(*queries[1:])
+        subquery = unioned_query.subquery()
+        query_to_filter = db.session.query(subquery)
+
+        if current_user.role == 'master' and empresa_id_filter:
+            query_to_filter = query_to_filter.filter(subquery.c.empresa_id == empresa_id_filter)
+        
+        if search_query:
+            search_term = f"%{search_query}%"
+            query_to_filter = query_to_filter.filter(or_(subquery.c.name.ilike(search_term), subquery.c.document_type.ilike(search_term)))
+        
+        all_results = query_to_filter.all()
+
+        for row in all_results:
+            doc_name_upper = str(row.document_type).upper()
+            prazo_alerta = default_prazo
+            
+            found_generic = False
+            for generic_type in known_generic_types:
+                type_to_check = 'ALVARA' if generic_type == 'ALVARÁ' else generic_type
+                if type_to_check in doc_name_upper:
+                    prazo_alerta = configs_dict.get(generic_type, default_prazo)
+                    found_generic = True
+                    break
+            
+            if not found_generic:
+                cleaned_name_for_logic = re.sub(r'[\\s\\d.-]+$', '', doc_name_upper.replace('DOCUMENTO', '').strip()).strip()
+                if cleaned_name_for_logic in configs_dict:
+                    prazo_alerta = configs_dict.get(cleaned_name_for_logic, default_prazo)
+
+            days_left = (row.due_date - today).days
+            
+            current_status = 'ok'
+            if days_left < 0:
+                current_status = 'vencido'
+            elif days_left <= prazo_alerta:
+                current_status = 'vencendo'
+            
+            if not status_filter and current_status == 'ok': continue
+            if status_filter and current_status != status_filter: continue
+            if hide_expired and current_status == 'vencido': continue
+
+            cleaned_doc_display_name = re.sub(r'\\s*(NAME|DTYPE):.*', '', str(row.document_type), flags=re.IGNORECASE).strip()
+            cleaned_doc_display_name = re.sub(r'DOCUMENTO', '', cleaned_doc_display_name, flags=re.IGNORECASE).strip()
+            cleaned_doc_display_name = re.sub(r'\\s+', ' ', cleaned_doc_display_name).strip().upper()
+
+            final_items.append({
+                'type': row.type, 'name': row.name, 'document_type': cleaned_doc_display_name,
+                'empresa_name': row.empresa_name, 'due_date': row.due_date,
+                'days_left': days_left, 'status': current_status
+            })
+        
+        final_items.sort(key=lambda x: x['days_left'])
+
+    # --- 2. Preparar e Gerar o CSV ---
+    dados_para_csv = []
+    for item in final_items:
+        # Define o status de forma mais descritiva
+        status_descritivo = ''
+        if item['status'] == 'vencido':
+            status_descritivo = f"Vencido há {abs(item['days_left'])} dia(s)"
+        elif item['status'] == 'vencendo':
+            if item['days_left'] == 0:
+                status_descritivo = "Vence hoje"
+            else:
+                status_descritivo = f"Vence em {item['days_left']} dia(s)"
+        else:
+            status_descritivo = 'OK'
+
+        dados_para_csv.append({
+            'Tipo': item['type'],
+            'Nome/Placa': item['name'],
+            'Documento': item['document_type'],
+            'Empresa': item['empresa_name'],
+            'Data de Vencimento': item['due_date'].strftime('%d/%m/%Y'),
+            'Status': status_descritivo
+        })
+    
+    # Cria o DataFrame
+    df = pd.DataFrame(dados_para_csv)
+
+    # Salva o DataFrame em um buffer de string
+    output = io.StringIO()
+    df.to_csv(output, index=False, sep=';', encoding='utf-8-sig')
+    output.seek(0)
+
+    # --- 3. Enviar a Resposta para Download ---
+    return Response(
+        output,
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment;filename=relatorio_de_vencimentos.csv"}
+    )
 
 
 

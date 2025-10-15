@@ -1,38 +1,37 @@
 body {
     font-family: Arial, sans-serif;
-    /* Imagem de fundo que ocupa todo o espaço (para Desktop) */
-    background-image: url('../images/background.jpg'); 
+    /* --- FUNDO ATUALIZADO --- */
+    background-image: url('../images/admir.png'); 
+    background-color: #031E5C; /* Cor de fallback */
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
+    background-attachment: fixed; /* Mantém a imagem fixa */
     
-    /* Sistema de alinhamento para DESKTOP */
+    /* Sistema de alinhamento */
     display: flex;
     justify-content: center;
-    align-items: flex-start;
-    height: 100vh;
+    align-items: center; /* Centraliza verticalmente */
+    min-height: 100vh;
     margin: 0;
-    
-    /* Espaçamento do topo para DESKTOP */
-    padding-top: 10vh; 
+    padding: 1rem;
     box-sizing: border-box;
-    transition: background 0.3s ease-in-out;
 }
 
 .login-container {
-    background-color: rgba(255, 255, 255, 0.97); 
+    background-color: rgba(255, 255, 255, 0.60); 
     padding: 2.5rem;
     border-radius: 10px;
     box-shadow: 0 5px 20px rgba(0,0,0,0.25);
     width: 100%;
-    max-width: 320px; 
+    max-width: 480px; /* Largura ajustada */
     text-align: center;
     transition: all 0.3s ease-in-out;
 }
 
 h2 {
     margin-bottom: 0.5rem;
-    color: #c9302c;
+    color: #333;
     font-weight: bold;
     font-size: 1.6rem;
 }
@@ -68,7 +67,7 @@ button {
     padding: 0.8rem;
     border: none;
     border-radius: 4px;
-    background-color: #c9302c;
+    background-color: #031E5C; /* Cor principal */
     color: white;
     font-size: 1.1rem;
     font-weight: bold;
@@ -77,7 +76,7 @@ button {
 }
 
 button:hover {
-    background-color: #a92723;
+    opacity: 0.9;
 }
 
 /* Mensagens Flash (Alerta) */
@@ -102,43 +101,33 @@ button:hover {
     border-color: #f5c6cb;
 }
 
-/* =============================================== */
-/* ===   MEDIA QUERY PARA DISPOSITIVOS MÓVEIS   === */
-/* =============================================== */
+/* === MEDIA QUERY PARA DISPOSITIVOS MÓVEIS === */
 @media (max-width: 768px) {
-    
     body {
-        /* **MUDANÇA**: Remove a imagem e define um fundo branco sólido */
-        background-image: none;
-        background-color: #ffffff;
-
-        /* Centraliza o conteúdo verticalmente na tela */
+        /* Para telas menores, centraliza o card e remove o padding extra */
         align-items: center; 
-        
-        /* Remove o espaçamento do topo */
-        padding-top: 0; 
+        padding: 0;
     }
 
     .login-container {
-        /* **MUDANÇA**: O card agora é transparente, sem sombra, mesclando-se com o fundo */
-        background-color: transparent;
+        /* Ocupa a largura total com uma pequena margem, sem sombra */
+        max-width: 100%; 
+        height: 100vh;
+        padding: 2rem 1.5rem;
+        border-radius: 0;
         box-shadow: none;
-        
-        /* Ajusta a largura e o padding para a tela menor */
-        max-width: 90%; 
-        padding: 1rem; 
-    }
-
-    h2 {
-        font-size: 1.5rem; 
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
     }
 }
 
+/* Preserva o estilo do rodapé, caso seja usado em alguma página */
 .rodape {
     position: fixed;
     bottom: 0;
-    left: var(--sidebar-width);
-    width: calc(100% - var(--sidebar-width));
+    left: 0;
+    width: 100%;
     background-color: #f8f9fa;
     text-align: center;
     padding: 5px 0;
@@ -146,8 +135,3 @@ button:hover {
     color: #6c757d;
     border-top: 1px solid #dee2e6;
 }
-
-.rodape {
-        left: 0;
-        width: 100%;
-    }

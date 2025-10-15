@@ -50,28 +50,29 @@
         {% endif %}
     {% endwith %}
 
-    <p class="mb-4">Utilize os formulários abaixo para cadastrar entidades ou registrar validades de documentos em massa. Escolha o tipo de dado, selecione o arquivo (.xls, .xlsx) e clique em "Enviar".</p>
+    <p class="mb-4 lead">Use esta página para adicionar dados em grande quantidade ao sistema. Siga os passos na ordem correta.</p>
 
     <div class="accordion" id="accordionUploads">
 
-        <!-- Bloco de Cadastros -->
-        <div class="accordion-item">
+        <!-- Bloco 1: Cadastros -->
+        <div class="accordion-item border border-primary">
             <h2 class="accordion-header" id="headingCadastro">
-                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCadastro" aria-expanded="false" aria-controls="collapseCadastro">
-                    <i class="fas fa-user-plus me-2"></i> Bloco 1: Cadastros de Entidades
+                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseCadastro" aria-expanded="true" aria-controls="collapseCadastro">
+                    <strong class="text-primary"><i class="fas fa-user-plus me-2"></i>PASSO 1: Cadastrar Novas Empresas, Motoristas e Veículos</strong>
                 </button>
             </h2>
-            <div id="collapseCadastro" class="accordion-collapse collapse" aria-labelledby="headingCadastro" data-bs-parent="#accordionUploads">
+            <div id="collapseCadastro" class="accordion-collapse collapse show" aria-labelledby="headingCadastro" data-bs-parent="#accordionUploads">
                 <div class="accordion-body">
+                    <p>Primeiro, use estes formulários para criar o cadastro base no sistema. Você <strong>precisa cadastrar as empresas antes</strong> de cadastrar os motoristas ou veículos vinculados a elas.</p>
                     <div class="row">
                         <div class="col-md-4 mb-4">
                             <div class="card h-100">
                                 <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">Cadastro de Transportador</h5>
+                                    <h5 class="card-title"><i class="fas fa-building"></i> Cadastro de Transportador</h5>
                                     <p class="card-text"><small>Colunas: <code>razao_social</code>, <code>cnpj</code>.</small></p>
                                     <form action="{{ url_for('admin.upload_empresas') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
                                         <div class="mb-3"><input class="form-control" type="file" name="arquivo" required></div>
-                                        <button type="submit" class="btn btn-primary w-100">Enviar Transportadores</button>
+                                        <button type="submit" class="btn btn-primary w-100">Cadastrar Transportadores</button>
                                     </form>
                                 </div>
                             </div>
@@ -79,11 +80,11 @@
                         <div class="col-md-4 mb-4">
                             <div class="card h-100">
                                 <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">Cadastro de Motorista</h5>
+                                    <h5 class="card-title"><i class="fas fa-user-tie"></i> Cadastro de Motorista</h5>
                                     <p class="card-text"><small>Colunas: <code>nome</code>, <code>cpf</code>, <code>cnpj_transportador</code>.</small></p>
                                     <form action="{{ url_for('admin.upload_motoristas') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
                                         <div class="mb-3"><input class="form-control" type="file" name="arquivo" required></div>
-                                        <button type="submit" class="btn btn-primary w-100">Enviar Motoristas</button>
+                                        <button type="submit" class="btn btn-primary w-100">Cadastrar Motoristas</button>
                                     </form>
                                 </div>
                             </div>
@@ -91,11 +92,11 @@
                         <div class="col-md-4 mb-4">
                             <div class="card h-100">
                                 <div class="card-body d-flex flex-column">
-                                    <h5 class="card-title">Cadastro de Veículos</h5>
+                                    <h5 class="card-title"><i class="fas fa-truck"></i> Cadastro de Veículos</h5>
                                     <p class="card-text"><small>Colunas: <code>placa</code>, <code>cnpj_transportador</code>.</small></p>
                                     <form action="{{ url_for('admin.upload_veiculos') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
                                         <div class="mb-3"><input class="form-control" type="file" name="arquivo" required></div>
-                                        <button type="submit" class="btn btn-primary w-100">Enviar Veículos</button>
+                                        <button type="submit" class="btn btn-primary w-100">Cadastrar Veículos</button>
                                     </form>
                                 </div>
                             </div>
@@ -105,24 +106,25 @@
             </div>
         </div>
 
-        <!-- Bloco de Validades -->
+        <!-- Bloco 2: Validades -->
         <div class="accordion-item">
             <h2 class="accordion-header" id="headingValidade">
-                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseValidade" aria-expanded="true" aria-controls="collapseValidade">
-                    <i class="fas fa-calendar-check me-2"></i> Bloco 2: Validades de Documentos
+                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseValidade" aria-expanded="false" aria-controls="collapseValidade">
+                    <strong class="text-secondary"><i class="fas fa-calendar-check me-2"></i>PASSO 2: Adicionar Vencimentos de Documentos</strong>
                 </button>
             </h2>
-            <div id="collapseValidade" class="accordion-collapse collapse show" aria-labelledby="headingValidade" data-bs-parent="#accordionUploads">
+            <div id="collapseValidade" class="accordion-collapse collapse" aria-labelledby="headingValidade" data-bs-parent="#accordionUploads">
                 <div class="accordion-body">
+                    <p>Após o cadastro de empresas, motoristas e veículos, use esta seção para importar as datas de vencimento dos seus respectivos documentos.</p>
                     <div class="row">
                         <div class="col-md-4 mb-4">
                             <div class="card h-100">
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title">Doc. Fiscal (Empresa)</h5>
-                                    <p class="card-text"><small>Colunas: <code>Nome</code>, <code>Tipo evento</code>, <code>Data vencimento</code>.</small></p>
+                                    <p class="card-text"><small>Colunas: <code>Nome</code> (razão social), <code>Tipo evento</code>, <code>Data vencimento</code>.</small></p>
                                     <form action="{{ url_for('admin.upload_doc_fiscal') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
                                         <div class="mb-3"><input class="form-control" type="file" name="documentos-fiscal-file" required></div>
-                                        <button type="submit" class="btn btn-secondary w-100">Enviar Validades Fiscais</button>
+                                        <button type="submit" class="btn btn-secondary w-100">Adicionar Vencimentos</button>
                                     </form>
                                 </div>
                             </div>
@@ -131,10 +133,10 @@
                             <div class="card h-100">
                                 <div class="card-body d-flex flex-column">
                                     <h5 class="card-title">Doc. Motorista</h5>
-                                    <p class="card-text"><small>Colunas: <code>Tipo evento</code>, <code>Nome</code>, <code>Data vencimento</code>.</small></p>
+                                    <p class="card-text"><small>Colunas: <code>Tipo evento</code>, <code>Nome</code> (do motorista), <code>Data vencimento</code>.</small></p>
                                     <form action="{{ url_for('admin.upload_doc_motorista') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
                                         <div class="mb-3"><input class="form-control" type="file" name="documentos-motorista-file" required></div>
-                                        <button type="submit" class="btn btn-secondary w-100">Enviar Validades de Motoristas</button>
+                                        <button type="submit" class="btn btn-secondary w-100">Adicionar Vencimentos</button>
                                     </form>
                                 </div>
                             </div>
@@ -146,7 +148,7 @@
                                     <p class="card-text"><small>Colunas: <code>Tipo evento</code>, <code>Nome</code> (placa), <code>Data vencimento</code>.</small></p>
                                     <form action="{{ url_for('admin.upload_doc_veiculo') }}" method="POST" enctype="multipart/form-data" class="mt-auto">
                                         <div class="mb-3"><input class="form-control" type="file" name="documentos-veiculo-file" required></div>
-                                        <button type="submit" class="btn btn-secondary w-100">Enviar Validades de Veículos</button>
+                                        <button type="submit" class="btn btn-secondary w-100">Adicionar Vencimentos</button>
                                     </form>
                                 </div>
                             </div>

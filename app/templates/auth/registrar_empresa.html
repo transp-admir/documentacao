@@ -65,10 +65,7 @@
                 </div>
             </form>
 
-            <div class="login-footer">
-                <p>Já tem uma conta? <a href="{{ url_for('auth.login_page') }}">Faça login</a></p>
-                <p class="text-muted">&copy; {{ ano }} SGV. Todos os direitos reservados.</p>
-            </div>
+            
         </div>
     </div>
 
@@ -121,6 +118,10 @@
             }
         });
     </script>
+    {# Adicionando o rodapé que existe no seu CSS #}
+    <div class="rodape">
+       Desenvolvido por 64Bits Informática &copy; {{ ano if ano else "2025" }}
+   </div>
 
 </body>
 </html>

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-br" class="h-100">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -143,7 +143,7 @@
 
     {% block head %}{% endblock %}
 </head>
-<body>
+<body class="d-flex flex-column h-100">
 
     {% block navigation %}
     <!-- Esta seção agora está intencionalmente vazia. -->
@@ -173,6 +173,14 @@
         </section>
     </main>
 
+    <footer class="footer-light mt-auto py-3 bg-light">
+        <div class="container-fluid px-4">
+            <div class="d-flex align-items-center justify-content-center small">
+                <div class="text-muted">Copyright &copy; Desenvolvido por 64Bits Informática {{ ano }}</div>
+            </div>
+        </div>
+    </footer>
+
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
         // A função toggleSidebar pode ser movida para um arquivo JS dedicado mais tarde
@@ -181,12 +189,5 @@
         }
     </script>
     {% block scripts %}{% endblock %}
-    <footer class="py-4 mt-4 footer-light">
-        <div class="container-fluid px-4">
-            <div class="d-flex align-items-center justify-content-center small">
-                <div class="text-muted">Copyright &copy; Desenvolvido por 64Bits Informática {{ ano }}</div>
-            </div>
-        </div>
-    </footer>
 </body>
 </html>
